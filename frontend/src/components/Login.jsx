@@ -1,6 +1,7 @@
 import { useState } from 'react';
+import axios from 'axios';
 
-function Login({ onLogin, onRegister }) {
+function Login({ onLogin }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [message, setMessage] = useState('');
@@ -11,31 +12,49 @@ function Login({ onLogin, onRegister }) {
     setMessage('Logging in...');
 
     try {
-      const response = await fetch('http://localhost:3000/auth/login', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
+      const response = await axios.post(
+        'http://localhost:3000/auth/login',
+        {
           email,
           password,
-        }),
-      });
+        }
+      );
 
-      const data = await response.json();
+      const data = response.data;
 
-      if (!response.ok) {
-        setMessage(data.message || 'Login failed');
-        return;
+      console.log('LOGIN RESPONSE:', data);
+
+      const loggedInUser = data.user || data;
+
+      console.log('LOGGED IN USER:', loggedInUser);
+      console.log('ROLE:', loggedInUser.role);
+
+      if (data.access_token) {
+        localStorage.setItem(
+          'access_token',
+          data.access_token
+        );
       }
 
-      localStorage.setItem('access_token', data.access_token);
-      localStorage.setItem('user', JSON.stringify(data.user));
+      localStorage.setItem(
+        'user',
+        JSON.stringify(loggedInUser)
+      );
 
-      onLogin(data.user);
+      onLogin(loggedInUser);
     } catch (error) {
-      console.error(error);
-      setMessage('Cannot connect to backend');
+      console.error('LOGIN ERROR:', error);
+
+      const errorMessage =
+        error.response?.data?.message ||
+        error.message ||
+        'Login failed';
+
+      setMessage(
+        Array.isArray(errorMessage)
+          ? errorMessage.join(', ')
+          : errorMessage
+      );
     }
   };
 
@@ -92,7 +111,9 @@ function Login({ onLogin, onRegister }) {
           <form onSubmit={handleSubmit}>
 
             <div style={styles.inputGroup}>
-              <label style={styles.label}>Email Address</label>
+              <label style={styles.label}>
+                Email Address
+              </label>
 
               <input
                 type="email"
@@ -105,7 +126,9 @@ function Login({ onLogin, onRegister }) {
             </div>
 
             <div style={styles.inputGroup}>
-              <label style={styles.label}>Password</label>
+              <label style={styles.label}>
+                Password
+              </label>
 
               <input
                 type="password"
@@ -140,17 +163,6 @@ function Login({ onLogin, onRegister }) {
               {message}
             </div>
           )}
-
-          <div style={styles.divider}>
-            <span>OR</span>
-          </div>
-
-          <button
-            onClick={onRegister}
-            style={styles.registerButton}
-          >
-            Create New Account
-          </button>
 
           <p style={styles.footerText}>
             Employee Leave Management System
@@ -348,28 +360,6 @@ const styles = {
     textAlign: 'center',
     fontSize: '13px',
     fontWeight: '600',
-  },
-
-  divider: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '12px',
-    margin: '25px 0',
-    color: '#94a3b8',
-    fontSize: '11px',
-    fontWeight: '700',
-  },
-
-  registerButton: {
-    width: '100%',
-    height: '50px',
-    borderRadius: '12px',
-    border: '1px solid #c7d2fe',
-    background: '#eef2ff',
-    color: '#4f46e5',
-    fontSize: '14px',
-    fontWeight: '700',
-    cursor: 'pointer',
   },
 
   footerText: {

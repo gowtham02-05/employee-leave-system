@@ -1,6 +1,6 @@
 import { useState } from 'react';
 
-function ApplyLeave({ onBack }) {
+function ApplyLeave({ onMyLeaves, onApplyLeave, onLogout }) {
   const [leaveType, setLeaveType] = useState('Casual Leave');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
@@ -19,7 +19,14 @@ function ApplyLeave({ onBack }) {
 
     try {
       const token = localStorage.getItem('access_token');
-      const user = JSON.parse(localStorage.getItem('user'));
+      const savedUser = localStorage.getItem('user');
+
+      if (!token || !savedUser) {
+        setMessage('Please login again');
+        return;
+      }
+
+      const user = JSON.parse(savedUser);
 
       const response = await fetch('http://localhost:3000/leaves/apply', {
         method: 'POST',
@@ -57,8 +64,10 @@ function ApplyLeave({ onBack }) {
 
   return (
     <div style={styles.page}>
-      {/* Sidebar */}
+
+      {/* SIDEBAR */}
       <aside style={styles.sidebar}>
+
         <div style={styles.logo}>
           <div style={styles.logoIcon}>EL</div>
 
@@ -71,31 +80,31 @@ function ApplyLeave({ onBack }) {
         </div>
 
         <div style={styles.menu}>
+
           <p style={styles.menuTitle}>MENU</p>
 
+          {/* APPLY LEAVE */}
           <button
-            style={styles.menuButton}
-            onClick={onBack}
+            style={styles.activeMenu}
+            onClick={onApplyLeave}
           >
-            <span>▣</span>
-            Dashboard
-          </button>
-
-          <button style={styles.activeMenu}>
             <span>＋</span>
             Apply Leave
           </button>
 
+          {/* MY LEAVES */}
           <button
             style={styles.menuButton}
-            onClick={onBack}
+            onClick={onMyLeaves}
           >
             <span>☰</span>
             My Leave Requests
           </button>
+
         </div>
 
         <div style={styles.sidebarFooter}>
+
           <div style={styles.securityBox}>
             <span style={styles.securityIcon}>🔒</span>
 
@@ -104,16 +113,27 @@ function ApplyLeave({ onBack }) {
               <small>Your data is protected</small>
             </div>
           </div>
+
+          <button
+            onClick={onLogout}
+            style={styles.logoutButton}
+          >
+            Logout
+          </button>
+
         </div>
+
       </aside>
 
-      {/* Main */}
+      {/* MAIN CONTENT */}
       <main style={styles.main}>
-        {/* Header */}
+
+        {/* HEADER */}
         <header style={styles.header}>
+
           <div>
             <p style={styles.breadcrumb}>
-              Dashboard / Apply Leave
+              Employee / Apply Leave
             </p>
 
             <h1 style={styles.title}>
@@ -125,20 +145,19 @@ function ApplyLeave({ onBack }) {
             </p>
           </div>
 
-          <button
-            onClick={onBack}
-            style={styles.backButton}
-          >
-            ← Back to Dashboard
-          </button>
         </header>
 
-        {/* Content */}
+        {/* CONTENT */}
         <div style={styles.content}>
-          {/* Form Card */}
+
+          {/* FORM */}
           <section style={styles.formCard}>
+
             <div style={styles.cardHeader}>
-              <div style={styles.headerIcon}>📅</div>
+
+              <div style={styles.headerIcon}>
+                📅
+              </div>
 
               <div>
                 <h2 style={styles.cardTitle}>
@@ -149,11 +168,14 @@ function ApplyLeave({ onBack }) {
                   Please provide the details for your leave request.
                 </p>
               </div>
+
             </div>
 
             <form onSubmit={handleSubmit}>
-              {/* Leave Type */}
+
+              {/* LEAVE TYPE */}
               <div style={styles.formGroup}>
+
                 <label style={styles.label}>
                   Leave Type
                 </label>
@@ -163,6 +185,7 @@ function ApplyLeave({ onBack }) {
                   onChange={(e) => setLeaveType(e.target.value)}
                   style={styles.input}
                 >
+
                   <option value="Casual Leave">
                     Casual Leave
                   </option>
@@ -178,12 +201,16 @@ function ApplyLeave({ onBack }) {
                   <option value="Emergency Leave">
                     Emergency Leave
                   </option>
+
                 </select>
+
               </div>
 
-              {/* Dates */}
+              {/* DATES */}
               <div style={styles.dateGrid}>
+
                 <div style={styles.formGroup}>
+
                   <label style={styles.label}>
                     Start Date
                   </label>
@@ -195,9 +222,11 @@ function ApplyLeave({ onBack }) {
                     required
                     style={styles.input}
                   />
+
                 </div>
 
                 <div style={styles.formGroup}>
+
                   <label style={styles.label}>
                     End Date
                   </label>
@@ -209,11 +238,14 @@ function ApplyLeave({ onBack }) {
                     required
                     style={styles.input}
                   />
+
                 </div>
+
               </div>
 
-              {/* Reason */}
+              {/* REASON */}
               <div style={styles.formGroup}>
+
                 <label style={styles.label}>
                   Reason for Leave
                 </label>
@@ -230,9 +262,10 @@ function ApplyLeave({ onBack }) {
                 <small style={styles.helperText}>
                   Please provide a clear reason for your leave request.
                 </small>
+
               </div>
 
-              {/* Message */}
+              {/* MESSAGE */}
               {message && (
                 <div
                   style={
@@ -249,14 +282,21 @@ function ApplyLeave({ onBack }) {
                 </div>
               )}
 
-              {/* Buttons */}
+              {/* BUTTONS */}
               <div style={styles.actions}>
+
                 <button
                   type="button"
-                  onClick={onBack}
+                  onClick={() => {
+                    setLeaveType('Casual Leave');
+                    setStartDate('');
+                    setEndDate('');
+                    setReason('');
+                    setMessage('');
+                  }}
                   style={styles.cancelButton}
                 >
-                  Cancel
+                  Clear
                 </button>
 
                 <button
@@ -266,77 +306,109 @@ function ApplyLeave({ onBack }) {
                   Submit Leave Request
                   <span>→</span>
                 </button>
+
               </div>
+
             </form>
+
           </section>
 
-          {/* Information Card */}
+          {/* INFORMATION CARD */}
           <aside style={styles.infoCard}>
+
             <div style={styles.infoTop}>
-              <div style={styles.infoIcon}>💡</div>
+
+              <div style={styles.infoIcon}>
+                💡
+              </div>
 
               <h2 style={styles.infoTitle}>
                 Leave Request Guide
               </h2>
+
             </div>
 
             <div style={styles.guideItem}>
-              <div style={styles.guideNumber}>1</div>
+
+              <div style={styles.guideNumber}>
+                1
+              </div>
 
               <div>
                 <strong>Select leave type</strong>
+
                 <p>
                   Choose the type of leave that best matches your request.
                 </p>
               </div>
+
             </div>
 
             <div style={styles.guideItem}>
-              <div style={styles.guideNumber}>2</div>
+
+              <div style={styles.guideNumber}>
+                2
+              </div>
 
               <div>
                 <strong>Choose your dates</strong>
+
                 <p>
                   Select the start and end dates for your leave.
                 </p>
               </div>
+
             </div>
 
             <div style={styles.guideItem}>
-              <div style={styles.guideNumber}>3</div>
+
+              <div style={styles.guideNumber}>
+                3
+              </div>
 
               <div>
                 <strong>Add a reason</strong>
+
                 <p>
                   Explain the reason clearly to help HR review your request.
                 </p>
               </div>
+
             </div>
 
             <div style={styles.notice}>
+
               <span>⏱</span>
 
               <div>
+
                 <strong>What happens next?</strong>
 
                 <p>
                   Your request will be sent to HR for review.
                   You can track the status from My Leave Requests.
                 </p>
+
               </div>
+
             </div>
+
           </aside>
+
         </div>
 
         <footer style={styles.footer}>
           © 2026 LeaveFlow · Employee Leave Management System
         </footer>
+
       </main>
+
     </div>
   );
 }
 
 const styles = {
+
   page: {
     minHeight: '100vh',
     width: '100%',
@@ -349,15 +421,18 @@ const styles = {
 
   sidebar: {
     width: '255px',
-    minHeight: '100vh',
+    height: '100vh',
+    flexShrink: 0,
     background: '#111827',
     color: '#ffffff',
     padding: '26px 18px',
     boxSizing: 'border-box',
     display: 'flex',
     flexDirection: 'column',
-    position: 'sticky',
+    position: 'fixed',
+    left: 0,
     top: 0,
+    overflowY: 'auto',
   },
 
   logo: {
@@ -435,7 +510,7 @@ const styles = {
     padding: '0 14px',
     fontSize: '13px',
     fontWeight: '600',
-    cursor: 'default',
+    cursor: 'pointer',
     textAlign: 'left',
     marginBottom: '6px',
   },
@@ -450,6 +525,7 @@ const styles = {
     alignItems: 'center',
     gap: '10px',
     color: '#cbd5e1',
+    marginBottom: '15px',
   },
 
   securityIcon: {
@@ -462,18 +538,29 @@ const styles = {
     justifyContent: 'center',
   },
 
+  logoutButton: {
+    width: '100%',
+    height: '42px',
+    border: '1px solid #374151',
+    borderRadius: '9px',
+    background: '#1f2937',
+    color: '#fca5a5',
+    fontSize: '12px',
+    fontWeight: '700',
+    cursor: 'pointer',
+  },
+
   main: {
     flex: 1,
     minWidth: 0,
+    marginLeft: '255px',
+    minHeight: '100vh',
     padding: '38px 45px',
     boxSizing: 'border-box',
+    overflowY: 'auto',
   },
 
   header: {
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: '20px',
     marginBottom: '28px',
   },
 
@@ -495,18 +582,6 @@ const styles = {
     margin: '7px 0 0',
     color: '#64748b',
     fontSize: '14px',
-  },
-
-  backButton: {
-    height: '43px',
-    padding: '0 17px',
-    borderRadius: '10px',
-    border: '1px solid #e2e8f0',
-    background: '#ffffff',
-    color: '#475569',
-    fontSize: '12px',
-    fontWeight: '650',
-    cursor: 'pointer',
   },
 
   content: {

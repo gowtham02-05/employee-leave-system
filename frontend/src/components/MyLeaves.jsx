@@ -1,50 +1,74 @@
 import { useEffect, useState } from 'react';
 
-function MyLeaves({ onBack }) {
+function MyLeaves({
+  user,
+  onMyLeaves,
+  onApplyLeave,
+  onLogout,
+}) {
   const [leaves, setLeaves] = useState([]);
-  const [message, setMessage] = useState('Loading leave requests...');
+  const [message, setMessage] = useState('');
+  const [loading, setLoading] = useState(true);
+
+  const loadLeaves = async () => {
+    setLoading(true);
+    setMessage('');
+
+    try {
+      const token = localStorage.getItem('access_token');
+
+      const response = await fetch('http://localhost:3000/leaves', {
+        method: 'GET',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        setMessage(data.message || 'Failed to load leave requests');
+        setLeaves([]);
+        return;
+      }
+
+      const employeeLeaves = Array.isArray(data)
+        ? data.filter((leave) => {
+            const employeeId =
+              leave.employeeId?._id ||
+              leave.employeeId?.id ||
+              leave.employeeId;
+
+            return String(employeeId) === String(user?.id);
+          })
+        : [];
+
+      setLeaves(employeeLeaves);
+    } catch (error) {
+      console.error('Load leaves error:', error);
+      setMessage('Cannot connect to backend');
+      setLeaves([]);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    const fetchLeaves = async () => {
-      try {
-        const token = localStorage.getItem('access_token');
-
-        const response = await fetch('http://localhost:3000/leaves', {
-          method: 'GET',
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        });
-
-        const data = await response.json();
-
-        if (!response.ok) {
-          setMessage(data.message || 'Failed to load leaves');
-          return;
-        }
-
-        setLeaves(data);
-        setMessage('');
-      } catch (error) {
-        console.error(error);
-        setMessage('Cannot connect to backend');
-      }
-    };
-
-    fetchLeaves();
+    loadLeaves();
   }, []);
 
   const getStatusStyle = (status) => {
-    const normalizedStatus = (status || 'PENDING').toUpperCase();
+    const value = String(status).toUpperCase();
 
-    if (normalizedStatus === 'APPROVED') {
+    if (value === 'APPROVED') {
       return {
         background: '#dcfce7',
         color: '#15803d',
       };
     }
 
-    if (normalizedStatus === 'REJECTED') {
+    if (value === 'REJECTED') {
       return {
         background: '#fee2e2',
         color: '#dc2626',
@@ -57,32 +81,12 @@ function MyLeaves({ onBack }) {
     };
   };
 
-  const getStatusIcon = (status) => {
-    const normalizedStatus = (status || 'PENDING').toUpperCase();
-
-    if (normalizedStatus === 'APPROVED') {
-      return '✓';
-    }
-
-    if (normalizedStatus === 'REJECTED') {
-      return '✕';
-    }
-
-    return '◷';
-  };
-
-  const formatDate = (date) => {
-    return new Date(date).toLocaleDateString('en-IN', {
-      day: '2-digit',
-      month: 'short',
-      year: 'numeric',
-    });
-  };
-
   return (
     <div style={styles.page}>
-      {/* Sidebar */}
+
+      {/* SIDEBAR */}
       <aside style={styles.sidebar}>
+
         <div style={styles.logo}>
           <div style={styles.logoIcon}>EL</div>
 
@@ -94,50 +98,61 @@ function MyLeaves({ onBack }) {
           </div>
         </div>
 
-        <div style={styles.sidebarMenu}>
+        <div style={styles.menu}>
           <p style={styles.menuTitle}>MENU</p>
 
           <button
+            type="button"
             style={styles.menuButton}
-            onClick={onBack}
+            onClick={onApplyLeave}
           >
-            <span>▣</span>
-            Dashboard
-          </button>
-
-          <button
-            style={styles.menuButton}
-            onClick={onBack}
-          >
-            <span>＋</span>
+            <span style={styles.menuIcon}>＋</span>
             Apply Leave
           </button>
 
-          <button style={styles.activeMenu}>
-            <span>☰</span>
+          <button
+            type="button"
+            style={styles.activeMenu}
+            onClick={onMyLeaves}
+          >
+            <span style={styles.menuIcon}>☰</span>
             My Leave Requests
           </button>
         </div>
 
         <div style={styles.sidebarFooter}>
-          <div style={styles.helpBox}>
-            <div style={styles.helpIcon}>?</div>
 
-            <div>
-              <strong>Need help?</strong>
-              <small>Contact your HR team</small>
+          <div style={styles.userBox}>
+            <div style={styles.avatar}>
+              {(user?.name || 'E').charAt(0).toUpperCase()}
+            </div>
+
+            <div style={styles.userInfo}>
+              <strong>{user?.name || 'Employee'}</strong>
+              <small>{user?.role || 'EMPLOYEE'}</small>
             </div>
           </div>
+
+          <button
+            type="button"
+            style={styles.logoutButton}
+            onClick={onLogout}
+          >
+            Logout
+          </button>
+
         </div>
       </aside>
 
-      {/* Main Content */}
+      {/* MAIN */}
       <main style={styles.main}>
-        {/* Header */}
+
+        {/* HEADER */}
         <header style={styles.header}>
+
           <div>
             <p style={styles.breadcrumb}>
-              Dashboard / My Leaves
+              Leave Management / My Leave Requests
             </p>
 
             <h1 style={styles.title}>
@@ -145,235 +160,231 @@ function MyLeaves({ onBack }) {
             </h1>
 
             <p style={styles.subtitle}>
-              Track and manage all your leave requests in one place.
+              View and track all your submitted leave requests.
             </p>
           </div>
 
           <button
-            onClick={onBack}
-            style={styles.backButton}
+            type="button"
+            style={styles.applyButton}
+            onClick={onApplyLeave}
           >
-            ← Back to Dashboard
+            + Apply Leave
           </button>
+
         </header>
 
-        {/* Summary */}
-        <section style={styles.summaryGrid}>
-          <div style={styles.summaryCard}>
-            <div style={styles.summaryIcon}>📋</div>
+        {/* SUMMARY */}
+        <section style={styles.summaryCard}>
 
-            <div>
-              <p style={styles.summaryLabel}>TOTAL REQUESTS</p>
-              <h2 style={styles.summaryNumber}>
-                {leaves.length}
-              </h2>
-            </div>
+          <div style={styles.summaryItem}>
+            <span style={styles.summaryLabel}>
+              Employee
+            </span>
+
+            <strong style={styles.summaryValue}>
+              {user?.name || '-'}
+            </strong>
           </div>
 
-          <div style={styles.summaryCard}>
-            <div
-              style={{
-                ...styles.summaryIcon,
-                background: '#fef3c7',
-              }}
-            >
-              ◷
-            </div>
+          <div style={styles.summaryItem}>
+            <span style={styles.summaryLabel}>
+              Email
+            </span>
 
-            <div>
-              <p style={styles.summaryLabel}>PENDING</p>
-              <h2 style={styles.summaryNumber}>
-                {
-                  leaves.filter(
-                    (leave) =>
-                      (leave.status || 'PENDING').toUpperCase() ===
-                      'PENDING'
-                  ).length
-                }
-              </h2>
-            </div>
+            <strong style={styles.summaryValue}>
+              {user?.email || '-'}
+            </strong>
           </div>
 
-          <div style={styles.summaryCard}>
-            <div
-              style={{
-                ...styles.summaryIcon,
-                background: '#dcfce7',
-              }}
-            >
-              ✓
-            </div>
+          <div style={styles.summaryItem}>
+            <span style={styles.summaryLabel}>
+              Total Requests
+            </span>
 
-            <div>
-              <p style={styles.summaryLabel}>APPROVED</p>
-              <h2 style={styles.summaryNumber}>
-                {
-                  leaves.filter(
-                    (leave) =>
-                      (leave.status || '').toUpperCase() ===
-                      'APPROVED'
-                  ).length
-                }
-              </h2>
-            </div>
+            <strong style={styles.summaryValue}>
+              {leaves.length}
+            </strong>
           </div>
 
-          <div style={styles.summaryCard}>
-            <div
-              style={{
-                ...styles.summaryIcon,
-                background: '#fee2e2',
-              }}
-            >
-              ✕
-            </div>
-
-            <div>
-              <p style={styles.summaryLabel}>REJECTED</p>
-              <h2 style={styles.summaryNumber}>
-                {
-                  leaves.filter(
-                    (leave) =>
-                      (leave.status || '').toUpperCase() ===
-                      'REJECTED'
-                  ).length
-                }
-              </h2>
-            </div>
-          </div>
         </section>
 
-        {/* Leave Table */}
-        <section style={styles.tableCard}>
-          <div style={styles.tableHeader}>
+        {/* ERROR MESSAGE */}
+        {message && (
+          <div style={styles.errorMessage}>
+            <span>⚠</span>
+            {message}
+          </div>
+        )}
+
+        {/* LEAVE HISTORY */}
+        <section style={styles.card}>
+
+          <div style={styles.cardHeader}>
+
             <div>
-              <h2 style={styles.tableTitle}>
+              <h2 style={styles.cardTitle}>
                 Leave History
               </h2>
 
-              <p style={styles.tableSubtitle}>
-                Your submitted leave requests
+              <p style={styles.cardSubtitle}>
+                Your submitted leave applications
               </p>
             </div>
 
-            <div style={styles.requestCount}>
-              {leaves.length} Request{leaves.length !== 1 ? 's' : ''}
-            </div>
+            <button
+              type="button"
+              style={styles.refreshButton}
+              onClick={loadLeaves}
+            >
+              ↻ Refresh
+            </button>
+
           </div>
 
-          {message && (
-            <div style={styles.loadingBox}>
-              <div style={styles.loadingIcon}>⟳</div>
-              <p>{message}</p>
+          {/* LOADING */}
+          {loading && (
+            <div style={styles.emptyState}>
+              <div style={styles.loadingIcon}>
+                ⏳
+              </div>
+
+              <h3 style={styles.emptyStateTitle}>
+                Loading requests...
+              </h3>
+
+              <p style={styles.emptyStateText}>
+                Please wait while we load your leave requests.
+              </p>
             </div>
           )}
 
-          {!message && leaves.length === 0 && (
+          {/* NO REQUESTS */}
+          {!loading && leaves.length === 0 && (
             <div style={styles.emptyState}>
-              <div style={styles.emptyIcon}>📭</div>
 
-              <h3>No Leave Requests</h3>
+              <div style={styles.emptyIcon}>
+                📋
+              </div>
 
-              <p>
-                You haven't submitted any leave requests yet.
+              <h3 style={styles.emptyStateTitle}>
+                No leave requests yet
+              </h3>
+
+              <p style={styles.emptyStateText}>
+                You haven't submitted any leave requests.
               </p>
 
               <button
-                onClick={onBack}
+                type="button"
                 style={styles.emptyButton}
+                onClick={onApplyLeave}
               >
-                Go to Dashboard
+                Apply for Leave
               </button>
+
             </div>
           )}
 
-          {!message && leaves.length > 0 && (
+          {/* TABLE */}
+          {!loading && leaves.length > 0 && (
             <div style={styles.tableWrapper}>
+
               <table style={styles.table}>
+
                 <thead>
                   <tr>
-                    <th style={styles.th}>LEAVE TYPE</th>
-                    <th style={styles.th}>START DATE</th>
-                    <th style={styles.th}>END DATE</th>
-                    <th style={styles.th}>REASON</th>
-                    <th style={styles.th}>STATUS</th>
+                    <th style={styles.th}>Leave Type</th>
+                    <th style={styles.th}>Start Date</th>
+                    <th style={styles.th}>End Date</th>
+                    <th style={styles.th}>Reason</th>
+                    <th style={styles.th}>Status</th>
                   </tr>
                 </thead>
 
                 <tbody>
-                  {leaves.map((leave) => {
+
+                  {leaves.map((leave, index) => {
+
                     const status =
-                      (leave.status || 'PENDING').toUpperCase();
+                      leave.status ||
+                      leave.leaveStatus ||
+                      'PENDING';
 
                     return (
-                      <tr key={leave._id}>
-                        <td style={styles.td}>
-                          <div style={styles.leaveType}>
-                            <div style={styles.leaveIcon}>
-                              📅
-                            </div>
-
-                            <div>
-                              <strong>
-                                {leave.leaveType}
-                              </strong>
-
-                              <small>
-                                Leave Request
-                              </small>
-                            </div>
-                          </div>
-                        </td>
+                      <tr key={leave._id || index}>
 
                         <td style={styles.td}>
-                          <strong style={styles.dateText}>
-                            {formatDate(leave.startDate)}
+                          <strong style={styles.leaveType}>
+                            {leave.leaveType || '-'}
                           </strong>
                         </td>
 
                         <td style={styles.td}>
-                          <strong style={styles.dateText}>
-                            {formatDate(leave.endDate)}
-                          </strong>
+                          {formatDate(leave.startDate)}
                         </td>
 
                         <td style={styles.td}>
-                          <span style={styles.reason}>
-                            {leave.reason || 'No reason provided'}
-                          </span>
+                          {formatDate(leave.endDate)}
+                        </td>
+
+                        <td style={styles.tdReason}>
+                          {leave.reason || '-'}
                         </td>
 
                         <td style={styles.td}>
                           <span
                             style={{
-                              ...styles.statusBadge,
+                              ...styles.status,
                               ...getStatusStyle(status),
                             }}
                           >
-                            <span>
-                              {getStatusIcon(status)}
-                            </span>
-
-                            {status}
+                            {String(status).toUpperCase()}
                           </span>
                         </td>
+
                       </tr>
                     );
                   })}
+
                 </tbody>
+
               </table>
+
             </div>
           )}
+
         </section>
 
         <footer style={styles.footer}>
           © 2026 LeaveFlow · Employee Leave Management System
         </footer>
+
       </main>
     </div>
   );
 }
 
+/* DATE FORMAT */
+function formatDate(date) {
+  if (!date) {
+    return '-';
+  }
+
+  const value = new Date(date);
+
+  if (Number.isNaN(value.getTime())) {
+    return date;
+  }
+
+  return value.toLocaleDateString('en-IN', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+  });
+}
+
+/* STYLES */
 const styles = {
   page: {
     minHeight: '100vh',
@@ -394,8 +405,10 @@ const styles = {
     boxSizing: 'border-box',
     display: 'flex',
     flexDirection: 'column',
-    position: 'sticky',
+    position: 'fixed',
+    left: 0,
     top: 0,
+    bottom: 0,
   },
 
   logo: {
@@ -429,7 +442,7 @@ const styles = {
     marginTop: '2px',
   },
 
-  sidebarMenu: {
+  menu: {
     flex: 1,
   },
 
@@ -473,37 +486,63 @@ const styles = {
     padding: '0 14px',
     fontSize: '13px',
     fontWeight: '600',
-    cursor: 'default',
+    cursor: 'pointer',
     textAlign: 'left',
     marginBottom: '6px',
   },
 
-  sidebarFooter: {
-    borderTop: '1px solid #273449',
-    paddingTop: '20px',
+  menuIcon: {
+    width: '20px',
+    textAlign: 'center',
+    fontSize: '16px',
   },
 
-  helpBox: {
+  sidebarFooter: {
+    borderTop: '1px solid #273449',
+    paddingTop: '18px',
+  },
+
+  userBox: {
     display: 'flex',
     alignItems: 'center',
     gap: '10px',
-    color: '#cbd5e1',
+    marginBottom: '15px',
   },
 
-  helpIcon: {
-    width: '34px',
-    height: '34px',
+  avatar: {
+    width: '36px',
+    height: '36px',
     borderRadius: '10px',
-    background: '#1e293b',
+    background: '#312e81',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
     fontWeight: '800',
   },
 
+  userInfo: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '3px',
+    overflow: 'hidden',
+  },
+
+  logoutButton: {
+    width: '100%',
+    height: '40px',
+    border: '1px solid #374151',
+    borderRadius: '9px',
+    background: '#1f2937',
+    color: '#cbd5e1',
+    cursor: 'pointer',
+    fontSize: '12px',
+    fontWeight: '600',
+  },
+
   main: {
     flex: 1,
     minWidth: 0,
+    marginLeft: '255px',
     padding: '38px 45px',
     boxSizing: 'border-box',
   },
@@ -536,94 +575,83 @@ const styles = {
     fontSize: '14px',
   },
 
-  backButton: {
-    height: '43px',
-    padding: '0 17px',
+  applyButton: {
+    height: '44px',
+    padding: '0 18px',
+    border: 'none',
     borderRadius: '10px',
-    border: '1px solid #e2e8f0',
-    background: '#ffffff',
-    color: '#475569',
+    background: 'linear-gradient(135deg, #4f46e5, #7c3aed)',
+    color: '#ffffff',
     fontSize: '12px',
-    fontWeight: '650',
+    fontWeight: '700',
     cursor: 'pointer',
   },
 
-  summaryGrid: {
-    display: 'grid',
-    gridTemplateColumns: 'repeat(4, 1fr)',
-    gap: '16px',
-    marginBottom: '22px',
-  },
-
   summaryCard: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(3, 1fr)',
     background: '#ffffff',
     border: '1px solid #e2e8f0',
-    borderRadius: '15px',
-    padding: '19px',
-    display: 'flex',
-    alignItems: 'center',
-    gap: '13px',
-  },
-
-  summaryIcon: {
-    width: '43px',
-    height: '43px',
-    borderRadius: '11px',
-    background: '#eef2ff',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    fontSize: '19px',
-  },
-
-  summaryLabel: {
-    margin: 0,
-    color: '#94a3b8',
-    fontSize: '9px',
-    fontWeight: '800',
-    letterSpacing: '0.8px',
-  },
-
-  summaryNumber: {
-    margin: '4px 0 0',
-    fontSize: '22px',
-    fontWeight: '800',
-  },
-
-  tableCard: {
-    background: '#ffffff',
-    border: '1px solid #e2e8f0',
-    borderRadius: '18px',
+    borderRadius: '16px',
+    marginBottom: '22px',
     overflow: 'hidden',
   },
 
-  tableHeader: {
-    padding: '23px 25px',
-    borderBottom: '1px solid #e2e8f0',
+  summaryItem: {
+    padding: '20px 24px',
+    borderRight: '1px solid #f1f5f9',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '7px',
+  },
+
+  summaryLabel: {
+    fontSize: '11px',
+    color: '#94a3b8',
+    fontWeight: '600',
+  },
+
+  summaryValue: {
+    fontSize: '15px',
+    color: '#1e293b',
+  },
+
+  card: {
+    background: '#ffffff',
+    border: '1px solid #e2e8f0',
+    borderRadius: '18px',
+    padding: '28px',
+  },
+
+  cardHeader: {
     display: 'flex',
     justifyContent: 'space-between',
     alignItems: 'center',
+    marginBottom: '22px',
   },
 
-  tableTitle: {
+  cardTitle: {
     margin: 0,
-    fontSize: '18px',
+    fontSize: '19px',
     fontWeight: '800',
   },
 
-  tableSubtitle: {
+  cardSubtitle: {
     margin: '5px 0 0',
     color: '#64748b',
     fontSize: '11px',
   },
 
-  requestCount: {
-    background: '#f1f5f9',
-    color: '#64748b',
-    borderRadius: '20px',
-    padding: '7px 11px',
-    fontSize: '10px',
-    fontWeight: '700',
+  refreshButton: {
+    height: '36px',
+    padding: '0 13px',
+    border: '1px solid #e2e8f0',
+    borderRadius: '8px',
+    background: '#ffffff',
+    color: '#475569',
+    fontSize: '11px',
+    fontWeight: '600',
+    cursor: 'pointer',
   },
 
   tableWrapper: {
@@ -634,120 +662,103 @@ const styles = {
   table: {
     width: '100%',
     borderCollapse: 'collapse',
-    minWidth: '760px',
   },
 
   th: {
     textAlign: 'left',
-    padding: '14px 20px',
+    padding: '14px 12px',
     background: '#f8fafc',
-    color: '#94a3b8',
-    fontSize: '9px',
-    fontWeight: '800',
-    letterSpacing: '0.8px',
     borderBottom: '1px solid #e2e8f0',
+    color: '#64748b',
+    fontSize: '11px',
+    fontWeight: '700',
+    whiteSpace: 'nowrap',
   },
 
   td: {
-    padding: '17px 20px',
+    padding: '17px 12px',
     borderBottom: '1px solid #f1f5f9',
-    fontSize: '12px',
     color: '#475569',
-    verticalAlign: 'middle',
+    fontSize: '12px',
+    verticalAlign: 'top',
   },
 
   leaveType: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '11px',
-  },
-
-  leaveIcon: {
-    width: '37px',
-    height: '37px',
-    borderRadius: '10px',
-    background: '#eef2ff',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    fontSize: '16px',
-  },
-
-  dateText: {
-    color: '#334155',
+    color: '#1e293b',
     fontSize: '12px',
   },
 
-  reason: {
-    display: 'block',
-    maxWidth: '190px',
-    whiteSpace: 'nowrap',
-    overflow: 'hidden',
-    textOverflow: 'ellipsis',
-  },
-
-  statusBadge: {
-    display: 'inline-flex',
-    alignItems: 'center',
-    gap: '5px',
-    padding: '7px 10px',
-    borderRadius: '20px',
-    fontSize: '9px',
-    fontWeight: '800',
-    letterSpacing: '0.3px',
-  },
-
-  loadingBox: {
-    minHeight: '250px',
-    display: 'flex',
-    flexDirection: 'column',
-    alignItems: 'center',
-    justifyContent: 'center',
+  tdReason: {
+    padding: '17px 12px',
+    borderBottom: '1px solid #f1f5f9',
     color: '#64748b',
-    fontSize: '13px',
+    fontSize: '12px',
+    maxWidth: '280px',
+    verticalAlign: 'top',
+    lineHeight: '1.5',
   },
 
-  loadingIcon: {
-    fontSize: '30px',
-    marginBottom: '10px',
+  status: {
+    display: 'inline-block',
+    padding: '6px 10px',
+    borderRadius: '20px',
+    fontSize: '10px',
+    fontWeight: '800',
   },
 
   emptyState: {
-    minHeight: '300px',
-    display: 'flex',
-    flexDirection: 'column',
-    alignItems: 'center',
-    justifyContent: 'center',
     textAlign: 'center',
-    padding: '30px',
+    padding: '60px 20px',
+    color: '#64748b',
   },
 
   emptyIcon: {
-    width: '65px',
-    height: '65px',
-    borderRadius: '18px',
-    background: '#f1f5f9',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    fontSize: '28px',
-    marginBottom: '15px',
+    fontSize: '42px',
+    marginBottom: '12px',
   },
 
-  emptyStateH3: {
-    margin: 0,
+  loadingIcon: {
+    fontSize: '32px',
+    marginBottom: '10px',
+  },
+
+  emptyStateTitle: {
+    margin: '10px 0 6px',
+    color: '#334155',
+    fontSize: '16px',
+    fontWeight: '700',
+  },
+
+  emptyStateText: {
+    margin: '0 0 20px',
+    color: '#64748b',
+    fontSize: '12px',
   },
 
   emptyButton: {
-    marginTop: '15px',
+    height: '42px',
+    padding: '0 18px',
     border: 'none',
-    borderRadius: '10px',
-    padding: '11px 18px',
+    borderRadius: '9px',
     background: '#4f46e5',
     color: '#ffffff',
     fontSize: '12px',
     fontWeight: '700',
     cursor: 'pointer',
+  },
+
+  errorMessage: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+    marginBottom: '20px',
+    padding: '12px 15px',
+    borderRadius: '10px',
+    background: '#fef2f2',
+    color: '#dc2626',
+    border: '1px solid #fecaca',
+    fontSize: '12px',
+    fontWeight: '600',
   },
 
   footer: {

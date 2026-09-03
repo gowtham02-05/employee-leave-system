@@ -1,49 +1,63 @@
-import { useState } from 'react';
+import axios from 'axios';
+import { useFormik } from 'formik';
+import * as Yup from 'yup';
 
 function Register({ onBackToLogin }) {
-  const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [role, setRole] = useState('EMPLOYEE');
-  const [message, setMessage] = useState('');
+  const validationSchema = Yup.object({
+    name: Yup.string()
+      .trim()
+      .required('Full name is required'),
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+    email: Yup.string()
+      .trim()
+      .email('Enter a valid email address')
+      .required('Email is required'),
 
-    setMessage('Registering...');
+    password: Yup.string()
+      .min(6, 'Password must be at least 6 characters')
+      .required('Password is required'),
+  });
 
-    try {
-      const response = await fetch('http://localhost:3000/users/register', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          name,
-          email,
-          password,
-          role,
-        }),
-      });
+  const formik = useFormik({
+    initialValues: {
+      name: '',
+      email: '',
+      password: '',
+    },
 
-      const data = await response.json();
+    validationSchema,
 
-      if (!response.ok) {
-        setMessage(data.message || 'Registration failed');
-        return;
+    onSubmit: async (values, { resetForm, setSubmitting, setStatus }) => {
+      setStatus('');
+
+      try {
+        await axios.post('http://localhost:3000/users/register', {
+          name: values.name.trim(),
+          email: values.email.trim(),
+          password: values.password,
+          role: 'EMPLOYEE',
+        });
+
+        setStatus({
+          type: 'success',
+          text: 'Registration successful. You can login now.',
+        });
+
+        resetForm();
+      } catch (error) {
+        console.error(error);
+
+        setStatus({
+          type: 'error',
+          text:
+            error.response?.data?.message ||
+            'Cannot connect to backend',
+        });
+      } finally {
+        setSubmitting(false);
       }
-
-      setMessage('Registration successful. You can login now.');
-
-      setName('');
-      setEmail('');
-      setPassword('');
-      setRole('EMPLOYEE');
-    } catch (error) {
-      console.error(error);
-      setMessage('Cannot connect to backend');
-    }
-  };
+    },
+  });
 
   return (
     <div style={styles.page}>
@@ -63,8 +77,8 @@ function Register({ onBackToLogin }) {
           </h1>
 
           <p style={styles.heroText}>
-            Create your account and manage your leave requests
-            from one simple and powerful platform.
+            Create your employee account and manage your leave
+            requests from one simple and powerful platform.
           </p>
 
           <div style={styles.featureList}>
@@ -88,85 +102,117 @@ function Register({ onBackToLogin }) {
         {/* Register Card */}
         <div style={styles.card}>
           <div style={styles.cardHeader}>
-            <h2 style={styles.title}>Create Account</h2>
+            <h2 style={styles.title}>Create Employee Account</h2>
 
             <p style={styles.subtitle}>
               Fill in your details to get started
             </p>
           </div>
 
-          <form onSubmit={handleSubmit}>
+          <form onSubmit={formik.handleSubmit}>
 
+            {/* Full Name */}
             <div style={styles.inputGroup}>
               <label style={styles.label}>Full Name</label>
 
               <input
                 type="text"
+                name="name"
                 placeholder="Enter your name"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                required
+                value={formik.values.name}
+                onChange={formik.handleChange}
+                onBlur={formik.handleBlur}
                 style={styles.input}
               />
+
+              {formik.touched.name && formik.errors.name && (
+                <div style={styles.validationError}>
+                  {formik.errors.name}
+                </div>
+              )}
             </div>
 
+            {/* Email */}
             <div style={styles.inputGroup}>
               <label style={styles.label}>Email Address</label>
 
               <input
                 type="email"
+                name="email"
                 placeholder="Enter your email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
+                value={formik.values.email}
+                onChange={formik.handleChange}
+                onBlur={formik.handleBlur}
                 style={styles.input}
               />
+
+              {formik.touched.email && formik.errors.email && (
+                <div style={styles.validationError}>
+                  {formik.errors.email}
+                </div>
+              )}
             </div>
 
+            {/* Password */}
             <div style={styles.inputGroup}>
               <label style={styles.label}>Password</label>
 
               <input
                 type="password"
+                name="password"
                 placeholder="Create a password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
+                value={formik.values.password}
+                onChange={formik.handleChange}
+                onBlur={formik.handleBlur}
                 style={styles.input}
               />
+
+              {formik.touched.password && formik.errors.password && (
+                <div style={styles.validationError}>
+                  {formik.errors.password}
+                </div>
+              )}
             </div>
 
-            <div style={styles.inputGroup}>
-              <label style={styles.label}>Account Role</label>
+            {/* No Role Selection */}
+            <div style={styles.employeeInfo}>
+              <span style={styles.infoIcon}>✓</span>
 
-              <select
-                value={role}
-                onChange={(e) => setRole(e.target.value)}
-                style={styles.input}
-              >
-                <option value="EMPLOYEE">Employee</option>
-                <option value="HR">HR</option>
-                <option value="ADMIN">Admin</option>
-              </select>
+              <div>
+                <div style={styles.infoTitle}>Employee Account</div>
+
+                <div style={styles.infoText}>
+                  New registrations are created as employees.
+                </div>
+              </div>
             </div>
 
             <button
               type="submit"
-              style={styles.registerButton}
+              disabled={formik.isSubmitting}
+              style={{
+                ...styles.registerButton,
+                opacity: formik.isSubmitting ? 0.7 : 1,
+                cursor: formik.isSubmitting
+                  ? 'not-allowed'
+                  : 'pointer',
+              }}
             >
-              Create Account
+              {formik.isSubmitting
+                ? 'Creating Account...'
+                : 'Create Employee Account'}
             </button>
           </form>
 
-          {message && (
+          {formik.status && (
             <div
               style={
-                message.includes('successful')
+                formik.status.type === 'success'
                   ? styles.successMessage
                   : styles.errorMessage
               }
             >
-              {message}
+              {formik.status.text}
             </div>
           )}
 
@@ -175,6 +221,7 @@ function Register({ onBackToLogin }) {
           </div>
 
           <button
+            type="button"
             onClick={onBackToLogin}
             style={styles.loginButton}
           >
@@ -353,10 +400,54 @@ const styles = {
     boxSizing: 'border-box',
   },
 
+  validationError: {
+    marginTop: '6px',
+    color: '#dc2626',
+    fontSize: '12px',
+    fontWeight: '500',
+  },
+
+  employeeInfo: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '11px',
+    padding: '12px 14px',
+    marginBottom: '17px',
+    borderRadius: '12px',
+    background: '#eef2ff',
+    border: '1px solid #c7d2fe',
+  },
+
+  infoIcon: {
+    width: '23px',
+    height: '23px',
+    borderRadius: '50%',
+    background: '#dcfce7',
+    color: '#16a34a',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    fontSize: '12px',
+    fontWeight: '800',
+    flexShrink: 0,
+  },
+
+  infoTitle: {
+    color: '#3730a3',
+    fontSize: '13px',
+    fontWeight: '700',
+    marginBottom: '2px',
+  },
+
+  infoText: {
+    color: '#64748b',
+    fontSize: '11px',
+  },
+
   registerButton: {
     width: '100%',
     height: '52px',
-    marginTop: '5px',
+    marginTop: '2px',
     border: 'none',
     borderRadius: '12px',
     background: 'linear-gradient(135deg, #4f46e5, #7c3aed)',
