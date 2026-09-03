@@ -1,14 +1,21 @@
 import { useState } from 'react';
 import axios from 'axios';
+import Input from './common/Input.jsx';
 
 function Login({ onLogin }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [message, setMessage] = useState('');
+  const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
 
+    if (loading) {
+      return;
+    }
+
+    setLoading(true);
     setMessage('Logging in...');
 
     try {
@@ -17,7 +24,7 @@ function Login({ onLogin }) {
         {
           email,
           password,
-        }
+        },
       );
 
       const data = response.data;
@@ -26,35 +33,58 @@ function Login({ onLogin }) {
 
       const loggedInUser = data.user || data;
 
+      if (!loggedInUser?.role) {
+        throw new Error(
+          'Login succeeded, but user information is missing.',
+        );
+      }
+
       console.log('LOGGED IN USER:', loggedInUser);
       console.log('ROLE:', loggedInUser.role);
 
       if (data.access_token) {
         localStorage.setItem(
           'access_token',
-          data.access_token
+          data.access_token,
         );
       }
 
       localStorage.setItem(
         'user',
-        JSON.stringify(loggedInUser)
+        JSON.stringify(loggedInUser),
       );
+
+      setMessage('');
 
       onLogin(loggedInUser);
     } catch (error) {
       console.error('LOGIN ERROR:', error);
 
-      const errorMessage =
-        error.response?.data?.message ||
-        error.message ||
-        'Login failed';
+      let errorMessage = 'Login failed. Please try again.';
 
-      setMessage(
-        Array.isArray(errorMessage)
-          ? errorMessage.join(', ')
-          : errorMessage
-      );
+      if (error.response) {
+        const serverMessage = error.response.data?.message;
+
+        if (Array.isArray(serverMessage)) {
+          errorMessage = serverMessage.join(', ');
+        } else if (serverMessage) {
+          errorMessage = serverMessage;
+        } else if (error.response.status === 401) {
+          errorMessage = 'Invalid email or password.';
+        } else if (error.response.status >= 500) {
+          errorMessage =
+            'Server error. Please try again later.';
+        }
+      } else if (error.request) {
+        errorMessage =
+          'Unable to connect to the server. Please make sure the backend is running.';
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+
+      setMessage(errorMessage);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -64,7 +94,6 @@ function Login({ onLogin }) {
       <div style={styles.backgroundCircleTwo}></div>
 
       <div style={styles.container}>
-
         {/* Left Section */}
         <div style={styles.heroSection}>
           <div style={styles.logoBox}>EL</div>
@@ -109,19 +138,17 @@ function Login({ onLogin }) {
           </div>
 
           <form onSubmit={handleSubmit}>
-
             <div style={styles.inputGroup}>
               <label style={styles.label}>
                 Email Address
               </label>
 
-              <input
+              <Input
                 type="email"
                 placeholder="Enter your email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
-                style={styles.input}
               />
             </div>
 
@@ -130,31 +157,43 @@ function Login({ onLogin }) {
                 Password
               </label>
 
-              <input
+              <Input
                 type="password"
                 placeholder="Enter your password"
                 value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                onChange={(e) =>
+                  setPassword(e.target.value)
+                }
                 required
-                style={styles.input}
               />
             </div>
 
             <button
               type="submit"
-              style={styles.loginButton}
+              disabled={loading}
+              style={{
+                ...styles.loginButton,
+                opacity: loading ? 0.7 : 1,
+                cursor: loading
+                  ? 'not-allowed'
+                  : 'pointer',
+              }}
               onMouseOver={(e) => {
-                e.currentTarget.style.transform = 'translateY(-2px)';
-                e.currentTarget.style.boxShadow =
-                  '0 10px 25px rgba(79, 70, 229, 0.35)';
+                if (!loading) {
+                  e.currentTarget.style.transform =
+                    'translateY(-2px)';
+                  e.currentTarget.style.boxShadow =
+                    '0 10px 25px rgba(79, 70, 229, 0.35)';
+                }
               }}
               onMouseOut={(e) => {
-                e.currentTarget.style.transform = 'translateY(0)';
+                e.currentTarget.style.transform =
+                  'translateY(0)';
                 e.currentTarget.style.boxShadow =
                   '0 6px 15px rgba(79, 70, 229, 0.25)';
               }}
             >
-              Sign In
+              {loading ? 'Signing In...' : 'Sign In'}
             </button>
           </form>
 
@@ -229,7 +268,8 @@ const styles = {
     width: '58px',
     height: '58px',
     borderRadius: '16px',
-    background: 'linear-gradient(135deg, #4f46e5, #7c3aed)',
+    background:
+      'linear-gradient(135deg, #4f46e5, #7c3aed)',
     color: '#ffffff',
     display: 'flex',
     alignItems: 'center',
@@ -237,7 +277,8 @@ const styles = {
     fontSize: '21px',
     fontWeight: '800',
     letterSpacing: '1px',
-    boxShadow: '0 10px 25px rgba(79, 70, 229, 0.3)',
+    boxShadow:
+      '0 10px 25px rgba(79, 70, 229, 0.3)',
     marginBottom: '28px',
   },
 
@@ -289,8 +330,10 @@ const styles = {
     background: 'rgba(255, 255, 255, 0.95)',
     borderRadius: '24px',
     padding: '38px',
-    boxShadow: '0 25px 60px rgba(15, 23, 42, 0.12)',
-    border: '1px solid rgba(255, 255, 255, 0.8)',
+    boxShadow:
+      '0 25px 60px rgba(15, 23, 42, 0.12)',
+    border:
+      '1px solid rgba(255, 255, 255, 0.8)',
     backdropFilter: 'blur(12px)',
   },
 
@@ -323,32 +366,20 @@ const styles = {
     fontWeight: '650',
   },
 
-  input: {
-    width: '100%',
-    height: '50px',
-    padding: '0 15px',
-    borderRadius: '12px',
-    border: '1px solid #dbe2ea',
-    background: '#f8fafc',
-    color: '#111827',
-    fontSize: '14px',
-    outline: 'none',
-    boxSizing: 'border-box',
-    transition: '0.2s',
-  },
-
   loginButton: {
     width: '100%',
     height: '52px',
     border: 'none',
     borderRadius: '12px',
-    background: 'linear-gradient(135deg, #4f46e5, #7c3aed)',
+    background:
+      'linear-gradient(135deg, #4f46e5, #7c3aed)',
     color: '#ffffff',
     fontSize: '15px',
     fontWeight: '700',
     cursor: 'pointer',
     transition: '0.2s',
-    boxShadow: '0 6px 15px rgba(79, 70, 229, 0.25)',
+    boxShadow:
+      '0 6px 15px rgba(79, 70, 229, 0.25)',
   },
 
   message: {

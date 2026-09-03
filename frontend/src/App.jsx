@@ -1,12 +1,11 @@
 import {
   BrowserRouter,
-  Routes,
-  Route,
   Navigate,
-  useNavigate,
+  Route,
+  Routes,
   useLocation,
+  useNavigate,
 } from 'react-router-dom';
-
 import { useEffect } from 'react';
 
 import Login from './components/Login.jsx';
@@ -19,69 +18,52 @@ import Employees from './components/Employees.jsx';
 import Departments from './components/Departments.jsx';
 import CreateEmployeeAccount from './components/CreateEmployeeAccount.jsx';
 
+const isHR = (user) =>
+  user?.role === 'HR' || user?.role === 'ADMIN';
+
+const isEmployee = (user) =>
+  user?.role !== 'HR' && user?.role !== 'ADMIN';
+
+const getStoredUser = () => {
+  const savedUser = localStorage.getItem('user');
+
+  if (!savedUser) {
+    return null;
+  }
+
+  try {
+    return JSON.parse(savedUser);
+  } catch {
+    localStorage.removeItem('user');
+    return null;
+  }
+};
+
 function AppRoutes() {
   const navigate = useNavigate();
   const location = useLocation();
-
-  // ==============================
-  // BROWSER TAB TITLE
-  // ==============================
+  const user = getStoredUser();
 
   useEffect(() => {
-    const path = location.pathname;
+    const pageTitles = {
+      '/admin': 'LeaveFlow - HR Dashboard',
+      '/employees': 'LeaveFlow - Employees',
+      '/departments': 'LeaveFlow - Departments',
+      '/hr-apply-leave': 'LeaveFlow - HR Apply Leave',
+      '/apply-leave': 'LeaveFlow - Apply Leave',
+      '/my-leaves': 'LeaveFlow - My Leaves',
+      '/register': 'LeaveFlow - Register',
+    };
 
-    if (path === '/admin') {
-      document.title = 'LeaveFlow - HR Dashboard';
-    } else if (path === '/employees') {
-      document.title = 'LeaveFlow - Employees';
-    } else if (path === '/departments') {
-      document.title = 'LeaveFlow - Departments';
-    } else if (path === '/hr-apply-leave') {
-      document.title = 'LeaveFlow - HR Apply Leave';
-    } else if (path === '/apply-leave') {
-      document.title = 'LeaveFlow - Apply Leave';
-    } else if (path === '/my-leaves') {
-      document.title = 'LeaveFlow - My Leaves';
-    } else if (path === '/register') {
-      document.title = 'LeaveFlow - Register';
-    } else {
-      document.title = 'LeaveFlow - Login';
-    }
+    document.title =
+      pageTitles[location.pathname] || 'LeaveFlow - Login';
   }, [location.pathname]);
-
-  // ==============================
-  // GET LOGGED-IN USER
-  // ==============================
-
-  const getUser = () => {
-    const savedUser = localStorage.getItem('user');
-
-    if (!savedUser) {
-      return null;
-    }
-
-    try {
-      return JSON.parse(savedUser);
-    } catch {
-      localStorage.removeItem('user');
-      return null;
-    }
-  };
-
-  const user = getUser();
-
-  // ==============================
-  // LOGIN
-  // ==============================
 
   const handleLogin = (loggedInUser) => {
     const loggedUser =
       loggedInUser?.user || loggedInUser;
 
     if (!loggedUser) {
-      console.error(
-        'No user received from login',
-      );
       return;
     }
 
@@ -94,80 +76,47 @@ function AppRoutes() {
       loggedUser.role || '',
     ).toUpperCase();
 
-    console.log(
-      'LOGIN USER:',
-      loggedUser,
-    );
-
-    console.log(
-      'LOGIN ROLE:',
-      role,
-    );
-
-    if (
-      role === 'HR' ||
-      role === 'ADMIN'
-    ) {
+    if (role === 'HR' || role === 'ADMIN') {
       navigate('/admin');
-    } else if (
-      role === 'EMPLOYEE'
-    ) {
+      return;
+    }
+
+    if (role === 'EMPLOYEE') {
       navigate('/apply-leave');
-    } else {
-      console.error(
-        'Unknown role:',
-        role,
-      );
     }
   };
 
-  // ==============================
-  // LOGOUT
-  // ==============================
-
   const handleLogout = () => {
-    localStorage.removeItem(
-      'access_token',
-    );
-
-    localStorage.removeItem(
-      'user',
-    );
-
+    localStorage.removeItem('access_token');
+    localStorage.removeItem('user');
     navigate('/login');
   };
 
   return (
     <Routes>
-
-      {/* ==========================
-          LOGIN
-      ========================== */}
-
       <Route
         path="/login"
         element={
           <Login
             onLogin={handleLogin}
-            onRegister={() =>
-              navigate('/register')
-            }
+            onRegister={() => navigate('/register')}
           />
         }
       />
 
-      {/* ==========================
-          CREATE EMPLOYEE ACCOUNT
-      ========================== */}
+      <Route
+        path="/register"
+        element={
+          <Register
+            onBackToLogin={() => navigate('/login')}
+          />
+        }
+      />
 
       <Route
         path="/create-employee-account"
         element={
-          user &&
-          (
-            user.role === 'HR' ||
-            user.role === 'ADMIN'
-          ) ? (
+          isHR(user) ? (
             <CreateEmployeeAccount
               user={user}
               onEmployees={() =>
@@ -176,39 +125,15 @@ function AppRoutes() {
               onLogout={handleLogout}
             />
           ) : (
-            <Navigate
-              to="/login"
-              replace
-            />
+            <Navigate to="/login" replace />
           )
         }
       />
 
-      {/* ==========================
-          REGISTER
-      ========================== */}
-
-      <Route
-        path="/register"
-        element={
-          <Register
-            onBackToLogin={() =>
-              navigate('/login')
-            }
-          />
-        }
-      />
-
-      {/* ==========================
-          EMPLOYEE APPLY LEAVE
-      ========================== */}
-
       <Route
         path="/apply-leave"
         element={
-          user &&
-          user.role !== 'HR' &&
-          user.role !== 'ADMIN' ? (
+          isEmployee(user) && user ? (
             <ApplyLeave
               user={user}
               onMyLeaves={() =>
@@ -219,34 +144,18 @@ function AppRoutes() {
               }
               onLogout={handleLogout}
             />
-          ) : user &&
-            (
-              user.role === 'HR' ||
-              user.role === 'ADMIN'
-            ) ? (
-            <Navigate
-              to="/admin"
-              replace
-            />
+          ) : isHR(user) ? (
+            <Navigate to="/admin" replace />
           ) : (
-            <Navigate
-              to="/login"
-              replace
-            />
+            <Navigate to="/login" replace />
           )
         }
       />
 
-      {/* ==========================
-          EMPLOYEE MY LEAVES
-      ========================== */}
-
       <Route
         path="/my-leaves"
         element={
-          user &&
-          user.role !== 'HR' &&
-          user.role !== 'ADMIN' ? (
+          isEmployee(user) && user ? (
             <MyLeaves
               user={user}
               onMyLeaves={() =>
@@ -257,43 +166,23 @@ function AppRoutes() {
               }
               onLogout={handleLogout}
             />
-          ) : user &&
-            (
-              user.role === 'HR' ||
-              user.role === 'ADMIN'
-            ) ? (
-            <Navigate
-              to="/admin"
-              replace
-            />
+          ) : isHR(user) ? (
+            <Navigate to="/admin" replace />
           ) : (
-            <Navigate
-              to="/login"
-              replace
-            />
+            <Navigate to="/login" replace />
           )
         }
       />
 
-      {/* ==========================
-          HR / ADMIN DASHBOARD
-      ========================== */}
-
       <Route
         path="/admin"
         element={
-          user &&
-          (
-            user.role === 'HR' ||
-            user.role === 'ADMIN'
-          ) ? (
+          isHR(user) ? (
             <AdminDashboard
               user={user}
               onLogout={handleLogout}
               onApplyLeave={() =>
-                navigate(
-                  '/hr-apply-leave',
-                )
+                navigate('/hr-apply-leave')
               }
               onEmployees={() =>
                 navigate('/employees')
@@ -303,26 +192,15 @@ function AppRoutes() {
               }
             />
           ) : (
-            <Navigate
-              to="/login"
-              replace
-            />
+            <Navigate to="/login" replace />
           )
         }
       />
 
-      {/* ==========================
-          EMPLOYEES
-      ========================== */}
-
       <Route
         path="/employees"
         element={
-          user &&
-          (
-            user.role === 'HR' ||
-            user.role === 'ADMIN'
-          ) ? (
+          isHR(user) ? (
             <Employees
               user={user}
               onDashboard={() =>
@@ -335,33 +213,20 @@ function AppRoutes() {
                 navigate('/departments')
               }
               onApplyLeave={() =>
-                navigate(
-                  '/hr-apply-leave',
-                )
+                navigate('/hr-apply-leave')
               }
               onLogout={handleLogout}
             />
           ) : (
-            <Navigate
-              to="/login"
-              replace
-            />
+            <Navigate to="/login" replace />
           )
         }
       />
 
-      {/* ==========================
-          DEPARTMENTS
-      ========================== */}
-
       <Route
         path="/departments"
         element={
-          user &&
-          (
-            user.role === 'HR' ||
-            user.role === 'ADMIN'
-          ) ? (
+          isHR(user) ? (
             <Departments
               user={user}
               onDashboard={() =>
@@ -374,33 +239,20 @@ function AppRoutes() {
                 navigate('/departments')
               }
               onApplyLeave={() =>
-                navigate(
-                  '/hr-apply-leave',
-                )
+                navigate('/hr-apply-leave')
               }
               onLogout={handleLogout}
             />
           ) : (
-            <Navigate
-              to="/login"
-              replace
-            />
+            <Navigate to="/login" replace />
           )
         }
       />
 
-      {/* ==========================
-          HR APPLY LEAVE
-      ========================== */}
-
       <Route
         path="/hr-apply-leave"
         element={
-          user &&
-          (
-            user.role === 'HR' ||
-            user.role === 'ADMIN'
-          ) ? (
+          isHR(user) ? (
             <HRApplyLeave
               user={user}
               onBack={() =>
@@ -413,35 +265,22 @@ function AppRoutes() {
                 navigate('/departments')
               }
               onApplyLeave={() =>
-                navigate(
-                  '/hr-apply-leave',
-                )
+                navigate('/hr-apply-leave')
               }
               onLogout={handleLogout}
             />
           ) : (
-            <Navigate
-              to="/login"
-              replace
-            />
+            <Navigate to="/login" replace />
           )
         }
       />
 
-      {/* ==========================
-          UNKNOWN URL
-      ========================== */}
-
       <Route
         path="*"
         element={
-          <Navigate
-            to="/login"
-            replace
-          />
+          <Navigate to="/login" replace />
         }
       />
-
     </Routes>
   );
 }

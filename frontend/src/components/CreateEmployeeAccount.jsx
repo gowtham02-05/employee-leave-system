@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 
 function CreateEmployeeAccount({ onEmployees, onLogout }) {
   const [departments, setDepartments] = useState([]);
+
   const [form, setForm] = useState({
     employeeId: '',
     name: '',
@@ -14,36 +15,51 @@ function CreateEmployeeAccount({ onEmployees, onLogout }) {
     password: '',
   });
 
-  const [loadingDepartments, setLoadingDepartments] = useState(true);
+  const [loadingDepartments, setLoadingDepartments] =
+    useState(true);
+
   const [submitting, setSubmitting] = useState(false);
+
   const [error, setError] = useState('');
+
   const [success, setSuccess] = useState('');
 
   useEffect(() => {
-    document.title = 'LeaveFlow - Create Employee Account';
+    document.title =
+      'LeaveFlow - Create Employee Account';
 
     const fetchDepartments = async () => {
       try {
-        const token = localStorage.getItem('access_token');
+        const token =
+          localStorage.getItem('access_token');
 
         const response = await fetch(
           'http://localhost:3000/departments',
           {
-            headers: {
-              Authorization: `Bearer ${token}`,
-            },
-          }
+            headers: token
+              ? {
+                  Authorization: `Bearer ${token}`,
+                }
+              : {},
+          },
         );
 
         if (!response.ok) {
-          throw new Error('Failed to load departments');
+          throw new Error(
+            'Failed to load departments',
+          );
         }
 
         const data = await response.json();
 
-        setDepartments(Array.isArray(data) ? data : []);
+        setDepartments(
+          Array.isArray(data) ? data : [],
+        );
       } catch (err) {
-        setError(err.message || 'Failed to load departments');
+        setError(
+          err.message ||
+            'Failed to load departments.',
+        );
       } finally {
         setLoadingDepartments(false);
       }
@@ -91,7 +107,9 @@ function CreateEmployeeAccount({ onEmployees, onLogout }) {
     }
 
     if (form.password.length < 6) {
-      setError('Password must be at least 6 characters.');
+      setError(
+        'Password must be at least 6 characters.',
+      );
       return;
     }
 
@@ -103,7 +121,8 @@ function CreateEmployeeAccount({ onEmployees, onLogout }) {
     try {
       setSubmitting(true);
 
-      const token = localStorage.getItem('access_token');
+      const token =
+        localStorage.getItem('access_token');
 
       const response = await fetch(
         'http://localhost:3000/users/register',
@@ -111,7 +130,11 @@ function CreateEmployeeAccount({ onEmployees, onLogout }) {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`,
+            ...(token
+              ? {
+                  Authorization: `Bearer ${token}`,
+                }
+              : {}),
           },
           body: JSON.stringify({
             employeeId: form.employeeId.trim(),
@@ -123,22 +146,27 @@ function CreateEmployeeAccount({ onEmployees, onLogout }) {
             department: form.department,
             designation: form.designation.trim(),
             doj: form.doj,
-            leaveBalance: Number(form.leaveBalance) || 0,
+            leaveBalance:
+              Number(form.leaveBalance) || 12,
           }),
-        }
+        },
       );
 
       const data = await response.json();
 
       if (!response.ok) {
         throw new Error(
-          data?.message ||
-            data?.error ||
-            'Failed to create employee account.'
+          Array.isArray(data?.message)
+            ? data.message.join(', ')
+            : data?.message ||
+                data?.error ||
+                'Failed to create employee account.',
         );
       }
 
-      setSuccess('Employee account created successfully.');
+      setSuccess(
+        'Employee account created successfully.',
+      );
 
       setForm({
         employeeId: '',
@@ -153,7 +181,8 @@ function CreateEmployeeAccount({ onEmployees, onLogout }) {
       });
     } catch (err) {
       setError(
-        err.message || 'Failed to create employee account.'
+        err.message ||
+          'Failed to create employee account.',
       );
     } finally {
       setSubmitting(false);
@@ -167,7 +196,10 @@ function CreateEmployeeAccount({ onEmployees, onLogout }) {
           <div style={styles.logoMark}>L</div>
 
           <div>
-            <div style={styles.logoText}>LeaveFlow</div>
+            <div style={styles.logoText}>
+              LeaveFlow
+            </div>
+
             <div style={styles.logoSubtext}>
               HR Management
             </div>
@@ -190,7 +222,9 @@ function CreateEmployeeAccount({ onEmployees, onLogout }) {
             <div style={styles.avatar}>HR</div>
 
             <div style={{ minWidth: 0 }}>
-              <div style={styles.userName}>HR</div>
+              <div style={styles.userName}>
+                HR
+              </div>
 
               <div style={styles.userRole}>
                 Human Resources
@@ -221,8 +255,8 @@ function CreateEmployeeAccount({ onEmployees, onLogout }) {
             </h1>
 
             <p style={styles.subtitle}>
-              Create a login account and employee profile
-              for a new employee.
+              Create a login account and employee
+              profile for a new employee.
             </p>
           </div>
 
@@ -289,6 +323,7 @@ function CreateEmployeeAccount({ onEmployees, onLogout }) {
                   onChange={handleChange}
                   style={styles.input}
                   disabled={loadingDepartments}
+                  required
                 >
                   <option value="">
                     {loadingDepartments
@@ -345,15 +380,28 @@ function CreateEmployeeAccount({ onEmployees, onLogout }) {
             </div>
 
             <div style={styles.grid}>
-              <Field
-                label="Login Email"
-                name="email"
-                type="email"
-                value={form.email}
-                onChange={handleChange}
-                placeholder="Same as employee email"
-                required
-              />
+              <div style={styles.field}>
+                <label style={styles.label}>
+                  Login Email
+                </label>
+
+                <input
+                  type="email"
+                  value={form.email}
+                  readOnly
+                  style={{
+                    ...styles.input,
+                    background: '#f9fafb',
+                    color: '#6b7280',
+                    cursor: 'not-allowed',
+                  }}
+                />
+
+                <div style={styles.helperText}>
+                  Login email is the same as employee
+                  email.
+                </div>
+              </div>
 
               <Field
                 label="Initial Password"
@@ -390,7 +438,13 @@ function CreateEmployeeAccount({ onEmployees, onLogout }) {
 
               <button
                 type="submit"
-                style={styles.createButton}
+                style={{
+                  ...styles.createButton,
+                  opacity: submitting ? 0.7 : 1,
+                  cursor: submitting
+                    ? 'not-allowed'
+                    : 'pointer',
+                }}
                 disabled={submitting}
               >
                 {submitting
@@ -668,6 +722,11 @@ const styles = {
     outline: 'none',
   },
 
+  helperText: {
+    fontSize: '11px',
+    color: '#6b7280',
+  },
+
   divider: {
     height: '1px',
     background: '#e5e7eb',
@@ -722,7 +781,6 @@ const styles = {
     color: '#fff',
     fontSize: '13px',
     fontWeight: 600,
-    cursor: 'pointer',
   },
 };
 

@@ -1,5 +1,14 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useDispatch, useSelector } from 'react-redux';
+
 import Button from './common/Button';
+
+import {
+  updateUser,
+  deleteUser,
+} from '../services/userService';
+
+import { fetchEmployeesRequest } from '../redux/employeeSlice';
 
 function Employees({
   user,
@@ -9,62 +18,91 @@ function Employees({
   onApplyLeave,
   onLogout,
 }) {
-  const [employees, setEmployees] = useState([]);
+  const dispatch = useDispatch();
+
+  const {
+    employees = [],
+    loading,
+    error,
+  } = useSelector((state) => state.employees);
+
   const [search, setSearch] = useState('');
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
 
   const [editingEmployee, setEditingEmployee] = useState(null);
   const [editLoading, setEditLoading] = useState(false);
   const [editError, setEditError] = useState('');
 
-  const token = localStorage.getItem('access_token');
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [deleteLoading, setDeleteLoading] = useState(false);
 
-  const fetchEmployees = async () => {
-    setLoading(true);
-    setError('');
+  const [notification, setNotification] = useState({
+    show: false,
+    type: '',
+    message: '',
+  });
 
-    try {
-      const response = await fetch('http://localhost:3000/users', {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
+  // ==============================
+  // FETCH EMPLOYEES THROUGH REDUX-SAGA
+  // ==============================
 
-      if (!response.ok) {
-        throw new Error('Failed to fetch employees');
-      }
-
-      const data = await response.json();
-
-      const employeeUsers = Array.isArray(data)
-        ? data.filter(
-            (item) =>
-              String(item.role || '').toUpperCase() === 'EMPLOYEE',
-          )
-        : [];
-
-      setEmployees(employeeUsers);
-    } catch (err) {
-      console.error(err);
-      setError('Unable to load employees.');
-    } finally {
-      setLoading(false);
-    }
+  const fetchEmployees = () => {
+    dispatch(fetchEmployeesRequest());
   };
 
   useEffect(() => {
     fetchEmployees();
   }, []);
 
+  // ==============================
+  // NOTIFICATION
+  // ==============================
+
+  useEffect(() => {
+    if (!notification.show) {
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      setNotification({
+        show: false,
+        type: '',
+        message: '',
+      });
+    }, 3000);
+
+    return () => clearTimeout(timer);
+  }, [notification.show]);
+
+  const showNotification = (type, message) => {
+    setNotification({
+      show: true,
+      type,
+      message,
+    });
+  };
+
+  // ==============================
+  // FILTER EMPLOYEES
+  // ==============================
+
+  const employeeList = useMemo(() => {
+    return Array.isArray(employees)
+      ? employees.filter(
+          (item) =>
+            String(item.role || '').toUpperCase() ===
+            'EMPLOYEE',
+        )
+      : [];
+  }, [employees]);
+
   const filteredEmployees = useMemo(() => {
     const value = search.trim().toLowerCase();
 
     if (!value) {
-      return employees;
+      return employeeList;
     }
 
-    return employees.filter((employee) => {
+    return employeeList.filter((employee) => {
       const id = String(
         employee.employeeId ||
           employee.employeeID ||
@@ -80,13 +118,17 @@ function Employees({
           '',
       ).toLowerCase();
 
-      const email = String(employee.email || '').toLowerCase();
+      const email = String(
+        employee.email || '',
+      ).toLowerCase();
 
       const department = String(
         employee.department || '',
       ).toLowerCase();
 
-      const role = String(employee.role || '').toLowerCase();
+      const role = String(
+        employee.role || '',
+      ).toLowerCase();
 
       return (
         id.includes(value) ||
@@ -96,7 +138,11 @@ function Employees({
         role.includes(value)
       );
     });
-  }, [employees, search]);
+  }, [employeeList, search]);
+
+  // ==============================
+  // EMPLOYEE HELPERS
+  // ==============================
 
   const getEmployeeId = (employee) => {
     return (
@@ -119,6 +165,7 @@ function Employees({
 
   const getInitial = (employee) => {
     const name = getEmployeeName(employee);
+
     return name.charAt(0).toUpperCase();
   };
 
@@ -177,15 +224,29 @@ function Employees({
 
     try {
       const updateData = {
-        employeeId: editingEmployee.employeeId.trim(),
-        name: editingEmployee.name.trim(),
-        email: editingEmployee.email.trim(),
-        phone: editingEmployee.phone.trim(),
-        department: editingEmployee.department.trim(),
-        designation: editingEmployee.designation.trim(),
+        employeeId:
+          editingEmployee.employeeId.trim(),
+
+        name:
+          editingEmployee.name.trim(),
+
+        email:
+          editingEmployee.email.trim(),
+
+        phone:
+          editingEmployee.phone.trim(),
+
+        department:
+          editingEmployee.department.trim(),
+
+        designation:
+          editingEmployee.designation.trim(),
+
         doj: editingEmployee.doj,
+
         leaveBalance:
           Number(editingEmployee.leaveBalance) || 0,
+
         status: editingEmployee.status,
       };
 
@@ -194,33 +255,26 @@ function Employees({
           editingEmployee.password.trim();
       }
 
-      const response = await fetch(
-        `http://localhost:3000/users/${editingEmployee._id}`,
-        {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify(updateData),
-        },
+      await updateUser(
+        editingEmployee._id,
+        updateData,
       );
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(
-          data?.message || 'Failed to update employee',
-        );
-      }
 
       setEditingEmployee(null);
 
-      await fetchEmployees();
+      dispatch(fetchEmployeesRequest());
+
+      showNotification(
+        'success',
+        'Employee updated successfully.',
+      );
     } catch (err) {
       console.error(err);
+
       setEditError(
-        err.message || 'Unable to update employee.',
+        err.response?.data?.message ||
+          err.message ||
+          'Unable to update employee.',
       );
     } finally {
       setEditLoading(false);
@@ -231,12 +285,12 @@ function Employees({
   // DELETE EMPLOYEE
   // ==============================
 
-  const deleteEmployee = async (employee) => {
-    const employeeName = getEmployeeName(employee);
+  const deleteEmployee = (employee) => {
     const employeeMongoId = employee?._id;
 
     if (!employeeMongoId) {
-      window.alert(
+      showNotification(
+        'error',
         'Employee ID not found. Cannot delete this employee.',
       );
 
@@ -248,53 +302,41 @@ function Employees({
       return;
     }
 
-    const confirmed = window.confirm(
-      `Are you sure you want to delete ${employeeName}?`,
-    );
+    setDeleteTarget(employee);
+  };
 
-    if (!confirmed) {
+  const cancelDelete = () => {
+    if (deleteLoading) {
       return;
     }
 
+    setDeleteTarget(null);
+  };
+
+  const confirmDelete = async () => {
+    if (
+      !deleteTarget?._id ||
+      deleteLoading
+    ) {
+      return;
+    }
+
+    const employeeMongoId =
+      deleteTarget._id;
+
+    setDeleteLoading(true);
+
     try {
-      const response = await fetch(
-        `http://localhost:3000/users/${employeeMongoId}`,
-        {
-          method: 'DELETE',
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        },
+      const data = await deleteUser(
+        employeeMongoId,
       );
 
-      const responseText = await response.text();
+      setDeleteTarget(null);
 
-      let data = {};
+      dispatch(fetchEmployeesRequest());
 
-      try {
-        data = responseText
-          ? JSON.parse(responseText)
-          : {};
-      } catch {
-        data = {
-          message: responseText,
-        };
-      }
-
-      if (!response.ok) {
-        throw new Error(
-          data?.message ||
-            `Delete failed with status ${response.status}`,
-        );
-      }
-
-      setEmployees((previous) =>
-        previous.filter(
-          (item) => item._id !== employeeMongoId,
-        ),
-      );
-
-      window.alert(
+      showNotification(
+        'success',
         data?.message ||
           'Employee deleted successfully.',
       );
@@ -304,10 +346,16 @@ function Employees({
         err,
       );
 
-      window.alert(
-        err.message ||
+      setDeleteTarget(null);
+
+      showNotification(
+        'error',
+        err.response?.data?.message ||
+          err.message ||
           'Unable to delete employee.',
       );
+    } finally {
+      setDeleteLoading(false);
     }
   };
 
@@ -332,14 +380,18 @@ function Employees({
     gap: '11px',
     padding: '0 13px',
     fontSize: '12px',
-    fontWeight: active ? '600' : '500',
+    fontWeight: active
+      ? '600'
+      : '500',
     cursor: 'pointer',
     textAlign: 'left',
     marginBottom: '5px',
     outline: 'none',
     appearance: 'none',
-    WebkitAppearance: 'none',
-    WebkitTapHighlightColor: 'transparent',
+    WebkitAppearance:
+      'none',
+    WebkitTapHighlightColor:
+      'transparent',
   });
 
   const iconStyle = {
@@ -463,7 +515,9 @@ function Employees({
             }
             style={menuButtonStyle(false)}
           >
-            <span style={iconStyle}>▣</span>
+            <span style={iconStyle}>
+              ▣
+            </span>
             Dashboard
           </button>
 
@@ -475,7 +529,9 @@ function Employees({
             }
             style={menuButtonStyle(true)}
           >
-            <span style={iconStyle}>👥</span>
+            <span style={iconStyle}>
+              👥
+            </span>
             Employees
           </button>
 
@@ -487,7 +543,9 @@ function Employees({
             }
             style={menuButtonStyle(false)}
           >
-            <span style={iconStyle}>▦</span>
+            <span style={iconStyle}>
+              ▦
+            </span>
             Departments
           </button>
 
@@ -499,7 +557,9 @@ function Employees({
             }
             style={menuButtonStyle(false)}
           >
-            <span style={iconStyle}>＋</span>
+            <span style={iconStyle}>
+              ＋
+            </span>
             Apply Leave
           </button>
 
@@ -511,7 +571,9 @@ function Employees({
             }
             style={menuButtonStyle(false)}
           >
-            <span style={iconStyle}>↻</span>
+            <span style={iconStyle}>
+              ↻
+            </span>
             Refresh
           </button>
         </div>
@@ -520,7 +582,8 @@ function Employees({
 
         <div
           style={{
-            borderTop: '1px solid #273449',
+            borderTop:
+              '1px solid #273449',
             paddingTop: '16px',
             display: 'flex',
             alignItems: 'center',
@@ -596,7 +659,8 @@ function Employees({
             height: '40px',
             flexShrink: 0,
             borderRadius: '8px',
-            border: '1px solid #374151',
+            border:
+              '1px solid #374151',
             background: 'transparent',
             color: '#cbd5e1',
             display: 'flex',
@@ -633,7 +697,8 @@ function Employees({
           style={{
             display: 'flex',
             alignItems: 'flex-start',
-            justifyContent: 'space-between',
+            justifyContent:
+              'space-between',
             gap: '20px',
             marginBottom: '28px',
           }}
@@ -646,7 +711,8 @@ function Employees({
                 lineHeight: '1.2',
                 fontWeight: '700',
                 color: '#0f172a',
-                letterSpacing: '-0.6px',
+                letterSpacing:
+                  '-0.6px',
               }}
             >
               Employees
@@ -684,7 +750,8 @@ function Employees({
         <div
           style={{
             background: '#ffffff',
-            border: '1px solid #e2e8f0',
+            border:
+              '1px solid #e2e8f0',
             borderRadius: '12px',
             padding: '20px',
             marginBottom: '20px',
@@ -730,7 +797,7 @@ function Employees({
                 fontWeight: '700',
               }}
             >
-              {employees.length}
+              {employeeList.length}
             </div>
           </div>
         </div>
@@ -740,7 +807,8 @@ function Employees({
         <div
           style={{
             background: '#ffffff',
-            border: '1px solid #e2e8f0',
+            border:
+              '1px solid #e2e8f0',
             borderRadius: '12px',
             overflow: 'hidden',
           }}
@@ -754,7 +822,8 @@ function Employees({
                 '1px solid #e2e8f0',
               display: 'flex',
               alignItems: 'center',
-              justifyContent: 'space-between',
+              justifyContent:
+                'space-between',
               gap: '20px',
             }}
           >
@@ -777,8 +846,10 @@ function Employees({
                   fontSize: '12px',
                 }}
               >
-                {filteredEmployees.length} employee
-                {filteredEmployees.length !== 1
+                {filteredEmployees.length}{' '}
+                employee
+                {filteredEmployees.length !==
+                1
                   ? 's'
                   : ''}{' '}
                 found
@@ -796,14 +867,16 @@ function Employees({
             >
               <span
                 style={{
-                  position: 'absolute',
+                  position:
+                    'absolute',
                   left: '12px',
                   top: '50%',
                   transform:
                     'translateY(-50%)',
                   color: '#94a3b8',
                   fontSize: '14px',
-                  pointerEvents: 'none',
+                  pointerEvents:
+                    'none',
                 }}
               >
                 ⌕
@@ -813,19 +886,23 @@ function Employees({
                 type="text"
                 value={search}
                 onChange={(e) =>
-                  setSearch(e.target.value)
+                  setSearch(
+                    e.target.value,
+                  )
                 }
                 placeholder="Search employees..."
                 style={{
                   width: '100%',
                   height: '38px',
-                  boxSizing: 'border-box',
+                  boxSizing:
+                    'border-box',
                   padding:
                     '0 12px 0 34px',
                   border:
                     '1px solid #e2e8f0',
                   borderRadius: '8px',
-                  background: '#ffffff',
+                  background:
+                    '#ffffff',
                   color: '#0f172a',
                   fontSize: '13px',
                   outline: 'none',
@@ -845,8 +922,10 @@ function Employees({
             {loading ? (
               <div
                 style={{
-                  padding: '60px 20px',
-                  textAlign: 'center',
+                  padding:
+                    '60px 20px',
+                  textAlign:
+                    'center',
                   color: '#64748b',
                   fontSize: '14px',
                 }}
@@ -856,8 +935,10 @@ function Employees({
             ) : error ? (
               <div
                 style={{
-                  padding: '60px 20px',
-                  textAlign: 'center',
+                  padding:
+                    '60px 20px',
+                  textAlign:
+                    'center',
                 }}
               >
                 <div
@@ -865,7 +946,8 @@ function Employees({
                     color: '#dc2626',
                     fontSize: '14px',
                     fontWeight: '500',
-                    marginBottom: '14px',
+                    marginBottom:
+                      '14px',
                   }}
                 >
                   {error}
@@ -873,30 +955,41 @@ function Employees({
 
                 <Button
                   type="button"
-                  onClick={fetchEmployees}
+                  onClick={
+                    fetchEmployees
+                  }
                   variant="primary"
                 >
                   Try Again
                 </Button>
               </div>
-            ) : filteredEmployees.length === 0 ? (
+            ) : filteredEmployees.length ===
+              0 ? (
               <div
                 style={{
-                  padding: '60px 20px',
-                  textAlign: 'center',
+                  padding:
+                    '60px 20px',
+                  textAlign:
+                    'center',
                 }}
               >
                 <div
                   style={{
                     width: '48px',
                     height: '48px',
-                    margin: '0 auto 14px',
-                    borderRadius: '50%',
-                    background: '#eef2ff',
-                    color: '#4f46e5',
+                    margin:
+                      '0 auto 14px',
+                    borderRadius:
+                      '50%',
+                    background:
+                      '#eef2ff',
+                    color:
+                      '#4f46e5',
                     display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
+                    alignItems:
+                      'center',
+                    justifyContent:
+                      'center',
                     fontSize: '20px',
                   }}
                 >
@@ -905,9 +998,12 @@ function Employees({
 
                 <div
                   style={{
-                    color: '#0f172a',
-                    fontSize: '14px',
-                    fontWeight: '600',
+                    color:
+                      '#0f172a',
+                    fontSize:
+                      '14px',
+                    fontWeight:
+                      '600',
                   }}
                 >
                   {search
@@ -918,9 +1014,12 @@ function Employees({
                 {search && (
                   <div
                     style={{
-                      color: '#94a3b8',
-                      fontSize: '12px',
-                      marginTop: '5px',
+                      color:
+                        '#94a3b8',
+                      fontSize:
+                        '12px',
+                      marginTop:
+                        '5px',
                     }}
                   >
                     Try a different search term.
@@ -931,14 +1030,17 @@ function Employees({
               <table
                 style={{
                   width: '100%',
-                  borderCollapse: 'collapse',
-                  minWidth: '1050px',
+                  borderCollapse:
+                    'collapse',
+                  minWidth:
+                    '1050px',
                 }}
               >
                 <thead>
                   <tr
                     style={{
-                      background: '#f8fafc',
+                      background:
+                        '#f8fafc',
                     }}
                   >
                     {[
@@ -948,30 +1050,42 @@ function Employees({
                       'Department',
                       'Role',
                       'Actions',
-                    ].map((heading) => (
-                      <th
-                        key={heading}
-                        style={{
-                          padding: '13px 18px',
-                          textAlign: 'left',
-                          color: '#64748b',
-                          fontSize: '11px',
-                          fontWeight: '700',
-                          textTransform: 'uppercase',
-                          letterSpacing: '0.5px',
-                          borderBottom:
-                            '1px solid #e2e8f0',
-                        }}
-                      >
-                        {heading}
-                      </th>
-                    ))}
+                    ].map(
+                      (heading) => (
+                        <th
+                          key={heading}
+                          style={{
+                            padding:
+                              '13px 18px',
+                            textAlign:
+                              'left',
+                            color:
+                              '#64748b',
+                            fontSize:
+                              '11px',
+                            fontWeight:
+                              '700',
+                            textTransform:
+                              'uppercase',
+                            letterSpacing:
+                              '0.5px',
+                            borderBottom:
+                              '1px solid #e2e8f0',
+                          }}
+                        >
+                          {heading}
+                        </th>
+                      ),
+                    )}
                   </tr>
                 </thead>
 
                 <tbody>
                   {filteredEmployees.map(
-                    (employee, index) => (
+                    (
+                      employee,
+                      index,
+                    ) => (
                       <tr
                         key={
                           employee._id ||
@@ -997,7 +1111,8 @@ function Employees({
                         >
                           <div
                             style={{
-                              display: 'flex',
+                              display:
+                                'flex',
                               alignItems:
                                 'center',
                               gap: '11px',
@@ -1005,15 +1120,18 @@ function Employees({
                           >
                             <div
                               style={{
-                                width: '36px',
-                                height: '36px',
+                                width:
+                                  '36px',
+                                height:
+                                  '36px',
                                 borderRadius:
                                   '50%',
                                 background:
                                   '#eef2ff',
                                 color:
                                   '#4f46e5',
-                                display: 'flex',
+                                display:
+                                  'flex',
                                 alignItems:
                                   'center',
                                 justifyContent:
@@ -1022,7 +1140,8 @@ function Employees({
                                   '13px',
                                 fontWeight:
                                   '700',
-                                flexShrink: 0,
+                                flexShrink:
+                                  0,
                               }}
                             >
                               {getInitial(
@@ -1032,7 +1151,8 @@ function Employees({
 
                             <div
                               style={{
-                                minWidth: 0,
+                                minWidth:
+                                  0,
                               }}
                             >
                               <div
@@ -1156,7 +1276,8 @@ function Employees({
                         >
                           <div
                             style={{
-                              display: 'flex',
+                              display:
+                                'flex',
                               alignItems:
                                 'center',
                               gap: '8px',
@@ -1171,13 +1292,18 @@ function Employees({
                               }
                               variant="secondary"
                               style={{
-                                height: '32px',
-                                padding: '0 11px',
-                                background: '#eef2ff',
-                                color: '#4338ca',
+                                height:
+                                  '32px',
+                                padding:
+                                  '0 11px',
+                                background:
+                                  '#eef2ff',
+                                color:
+                                  '#4338ca',
                                 border:
                                   '1px solid #c7d2fe',
-                                fontSize: '12px',
+                                fontSize:
+                                  '12px',
                               }}
                             >
                               ✎ Edit
@@ -1192,13 +1318,18 @@ function Employees({
                               }
                               variant="danger"
                               style={{
-                                height: '32px',
-                                padding: '0 11px',
-                                background: '#fef2f2',
-                                color: '#dc2626',
+                                height:
+                                  '32px',
+                                padding:
+                                  '0 11px',
+                                background:
+                                  '#fef2f2',
+                                color:
+                                  '#dc2626',
                                 border:
                                   '1px solid #fecaca',
-                                fontSize: '12px',
+                                fontSize:
+                                  '12px',
                               }}
                             >
                               🗑 Delete
@@ -1217,19 +1348,28 @@ function Employees({
 
           {!loading &&
             !error &&
-            filteredEmployees.length > 0 && (
+            filteredEmployees.length >
+              0 && (
               <div
                 style={{
-                  padding: '13px 22px',
+                  padding:
+                    '13px 22px',
                   borderTop:
                     '1px solid #e2e8f0',
-                  color: '#94a3b8',
+                  color:
+                    '#94a3b8',
                   fontSize: '11px',
-                  background: '#ffffff',
+                  background:
+                    '#ffffff',
                 }}
               >
-                Showing {filteredEmployees.length} of{' '}
-                {employees.length} employees
+                Showing{' '}
+                {
+                  filteredEmployees.length
+                }{' '}
+                of{' '}
+                {employeeList.length}{' '}
+                employees
               </div>
             )}
         </div>
@@ -1245,8 +1385,10 @@ function Employees({
             background:
               'rgba(15, 23, 42, 0.55)',
             display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
+            alignItems:
+              'center',
+            justifyContent:
+              'center',
             padding: '24px',
             zIndex: 100,
           }}
@@ -1257,8 +1399,10 @@ function Employees({
               maxWidth: '620px',
               maxHeight: '90vh',
               overflowY: 'auto',
-              background: '#ffffff',
-              borderRadius: '14px',
+              background:
+                '#ffffff',
+              borderRadius:
+                '14px',
               boxShadow:
                 '0 20px 50px rgba(15, 23, 42, 0.25)',
             }}
@@ -1267,11 +1411,13 @@ function Employees({
 
             <div
               style={{
-                padding: '20px 22px',
+                padding:
+                  '20px 22px',
                 borderBottom:
                   '1px solid #e2e8f0',
                 display: 'flex',
-                alignItems: 'center',
+                alignItems:
+                  'center',
                 justifyContent:
                   'space-between',
               }}
@@ -1280,9 +1426,12 @@ function Employees({
                 <h2
                   style={{
                     margin: 0,
-                    fontSize: '18px',
-                    fontWeight: '700',
-                    color: '#0f172a',
+                    fontSize:
+                      '18px',
+                    fontWeight:
+                      '700',
+                    color:
+                      '#0f172a',
                   }}
                 >
                   Edit Employee
@@ -1290,9 +1439,12 @@ function Employees({
 
                 <p
                   style={{
-                    margin: '5px 0 0',
-                    fontSize: '12px',
-                    color: '#94a3b8',
+                    margin:
+                      '5px 0 0',
+                    fontSize:
+                      '12px',
+                    color:
+                      '#94a3b8',
                   }}
                 >
                   Update employee information.
@@ -1301,14 +1453,19 @@ function Employees({
 
               <Button
                 type="button"
-                onClick={closeEdit}
-                disabled={editLoading}
+                onClick={
+                  closeEdit
+                }
+                disabled={
+                  editLoading
+                }
                 variant="secondary"
                 style={{
                   width: '34px',
                   height: '34px',
                   padding: 0,
-                  fontSize: '18px',
+                  fontSize:
+                    '18px',
                 }}
               >
                 ×
@@ -1317,11 +1474,17 @@ function Employees({
 
             {/* FORM */}
 
-            <form onSubmit={saveEmployee}>
+            <form
+              onSubmit={
+                saveEmployee
+              }
+            >
               <div
                 style={{
-                  padding: '22px',
-                  display: 'grid',
+                  padding:
+                    '22px',
+                  display:
+                    'grid',
                   gridTemplateColumns:
                     'repeat(2, minmax(0, 1fr))',
                   gap: '16px',
@@ -1329,102 +1492,156 @@ function Employees({
               >
                 {[
                   {
-                    label: 'Employee ID',
-                    name: 'employeeId',
+                    label:
+                      'Employee ID',
+                    name:
+                      'employeeId',
                     type: 'text',
-                    required: true,
+                    required:
+                      true,
                   },
                   {
-                    label: 'Name',
+                    label:
+                      'Name',
                     name: 'name',
                     type: 'text',
-                    required: true,
+                    required:
+                      true,
                   },
                   {
-                    label: 'Email',
-                    name: 'email',
+                    label:
+                      'Email',
+                    name:
+                      'email',
                     type: 'email',
-                    required: true,
+                    required:
+                      true,
                   },
                   {
-                    label: 'Phone',
-                    name: 'phone',
+                    label:
+                      'Phone',
+                    name:
+                      'phone',
                     type: 'text',
                   },
                   {
-                    label: 'Department',
-                    name: 'department',
+                    label:
+                      'Department',
+                    name:
+                      'department',
                     type: 'text',
-                    required: true,
+                    required:
+                      true,
                   },
                   {
-                    label: 'Designation',
-                    name: 'designation',
+                    label:
+                      'Designation',
+                    name:
+                      'designation',
                     type: 'text',
                   },
                   {
-                    label: 'Date of Joining',
-                    name: 'doj',
+                    label:
+                      'Date of Joining',
+                    name:
+                      'doj',
                     type: 'date',
                   },
                   {
-                    label: 'Leave Balance',
-                    name: 'leaveBalance',
+                    label:
+                      'Leave Balance',
+                    name:
+                      'leaveBalance',
                     type: 'number',
                     min: '0',
                   },
-                ].map((field) => (
-                  <div key={field.name}>
-                    <label
-                      style={{
-                        display: 'block',
-                        marginBottom: '6px',
-                        color: '#475569',
-                        fontSize: '12px',
-                        fontWeight: '600',
-                      }}
+                ].map(
+                  (field) => (
+                    <div
+                      key={
+                        field.name
+                      }
                     >
-                      {field.label}
-                    </label>
+                      <label
+                        style={{
+                          display:
+                            'block',
+                          marginBottom:
+                            '6px',
+                          color:
+                            '#475569',
+                          fontSize:
+                            '12px',
+                          fontWeight:
+                            '600',
+                        }}
+                      >
+                        {
+                          field.label
+                        }
+                      </label>
 
-                    <input
-                      type={field.type}
-                      name={field.name}
-                      value={
-                        editingEmployee[field.name]
-                      }
-                      onChange={
-                        handleEditChange
-                      }
-                      required={field.required}
-                      min={field.min}
-                      style={{
-                        width: '100%',
-                        height: '40px',
-                        boxSizing:
-                          'border-box',
-                        padding: '0 11px',
-                        border:
-                          '1px solid #e2e8f0',
-                        borderRadius: '7px',
-                        outline: 'none',
-                        fontSize: '13px',
-                        color: '#0f172a',
-                      }}
-                    />
-                  </div>
-                ))}
+                      <input
+                        type={
+                          field.type
+                        }
+                        name={
+                          field.name
+                        }
+                        value={
+                          editingEmployee[
+                            field.name
+                          ]
+                        }
+                        onChange={
+                          handleEditChange
+                        }
+                        required={
+                          field.required
+                        }
+                        min={
+                          field.min
+                        }
+                        style={{
+                          width:
+                            '100%',
+                          height:
+                            '40px',
+                          boxSizing:
+                            'border-box',
+                          padding:
+                            '0 11px',
+                          border:
+                            '1px solid #e2e8f0',
+                          borderRadius:
+                            '7px',
+                          outline:
+                            'none',
+                          fontSize:
+                            '13px',
+                          color:
+                            '#0f172a',
+                        }}
+                      />
+                    </div>
+                  ),
+                )}
 
                 {/* STATUS */}
 
                 <div>
                   <label
                     style={{
-                      display: 'block',
-                      marginBottom: '6px',
-                      color: '#475569',
-                      fontSize: '12px',
-                      fontWeight: '600',
+                      display:
+                        'block',
+                      marginBottom:
+                        '6px',
+                      color:
+                        '#475569',
+                      fontSize:
+                        '12px',
+                      fontWeight:
+                        '600',
                     }}
                   >
                     Status
@@ -1439,17 +1656,24 @@ function Employees({
                       handleEditChange
                     }
                     style={{
-                      width: '100%',
-                      height: '40px',
+                      width:
+                        '100%',
+                      height:
+                        '40px',
                       boxSizing:
                         'border-box',
-                      padding: '0 11px',
+                      padding:
+                        '0 11px',
                       border:
                         '1px solid #e2e8f0',
-                      borderRadius: '7px',
-                      outline: 'none',
-                      fontSize: '13px',
-                      color: '#0f172a',
+                      borderRadius:
+                        '7px',
+                      outline:
+                        'none',
+                      fontSize:
+                        '13px',
+                      color:
+                        '#0f172a',
                       background:
                         '#ffffff',
                     }}
@@ -1474,11 +1698,16 @@ function Employees({
                 >
                   <label
                     style={{
-                      display: 'block',
-                      marginBottom: '6px',
-                      color: '#475569',
-                      fontSize: '12px',
-                      fontWeight: '600',
+                      display:
+                        'block',
+                      marginBottom:
+                        '6px',
+                      color:
+                        '#475569',
+                      fontSize:
+                        '12px',
+                      fontWeight:
+                        '600',
                     }}
                   >
                     New Password
@@ -1496,17 +1725,24 @@ function Employees({
                     placeholder="Leave blank to keep current password"
                     minLength="6"
                     style={{
-                      width: '100%',
-                      height: '40px',
+                      width:
+                        '100%',
+                      height:
+                        '40px',
                       boxSizing:
                         'border-box',
-                      padding: '0 11px',
+                      padding:
+                        '0 11px',
                       border:
                         '1px solid #e2e8f0',
-                      borderRadius: '7px',
-                      outline: 'none',
-                      fontSize: '13px',
-                      color: '#0f172a',
+                      borderRadius:
+                        '7px',
+                      outline:
+                        'none',
+                      fontSize:
+                        '13px',
+                      color:
+                        '#0f172a',
                     }}
                   />
                 </div>
@@ -1534,7 +1770,9 @@ function Employees({
                         '500',
                     }}
                   >
-                    {editError}
+                    {
+                      editError
+                    }
                   </div>
                 )}
               </div>
@@ -1555,12 +1793,17 @@ function Employees({
               >
                 <Button
                   type="button"
-                  onClick={closeEdit}
-                  disabled={editLoading}
+                  onClick={
+                    closeEdit
+                  }
+                  disabled={
+                    editLoading
+                  }
                   variant="secondary"
                   style={{
                     height: '40px',
-                    padding: '0 16px',
+                    padding:
+                      '0 16px',
                   }}
                 >
                   Cancel
@@ -1568,11 +1811,14 @@ function Employees({
 
                 <Button
                   type="submit"
-                  disabled={editLoading}
+                  disabled={
+                    editLoading
+                  }
                   variant="primary"
                   style={{
                     height: '40px',
-                    padding: '0 18px',
+                    padding:
+                      '0 18px',
                   }}
                 >
                   {editLoading
@@ -1582,6 +1828,249 @@ function Employees({
               </div>
             </form>
           </div>
+        </div>
+      )}
+
+      {/* DELETE CONFIRMATION MODAL */}
+
+      {deleteTarget && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background:
+              'rgba(15, 23, 42, 0.55)',
+            display: 'flex',
+            alignItems:
+              'center',
+            justifyContent:
+              'center',
+            padding: '24px',
+            zIndex: 200,
+          }}
+        >
+          <div
+            style={{
+              width: '100%',
+              maxWidth: '420px',
+              background:
+                '#ffffff',
+              borderRadius:
+                '14px',
+              padding: '26px',
+              boxSizing:
+                'border-box',
+              boxShadow:
+                '0 20px 50px rgba(15, 23, 42, 0.25)',
+              textAlign:
+                'center',
+            }}
+          >
+            <div
+              style={{
+                width: '52px',
+                height: '52px',
+                margin:
+                  '0 auto 16px',
+                borderRadius:
+                  '50%',
+                background:
+                  '#fef2f2',
+                color:
+                  '#dc2626',
+                display:
+                  'flex',
+                alignItems:
+                  'center',
+                justifyContent:
+                  'center',
+                fontSize:
+                  '22px',
+              }}
+            >
+              🗑
+            </div>
+
+            <h2
+              style={{
+                margin:
+                  '0 0 8px',
+                fontSize:
+                  '18px',
+                fontWeight:
+                  '700',
+                color:
+                  '#0f172a',
+              }}
+            >
+              Delete Employee?
+            </h2>
+
+            <p
+              style={{
+                margin:
+                  '0 auto',
+                maxWidth:
+                  '330px',
+                color:
+                  '#64748b',
+                fontSize:
+                  '13px',
+                lineHeight:
+                  '1.6',
+              }}
+            >
+              Are you sure you want to
+              delete{' '}
+              <strong
+                style={{
+                  color:
+                    '#0f172a',
+                }}
+              >
+                {getEmployeeName(
+                  deleteTarget,
+                )}
+              </strong>
+              ? This action cannot be undone.
+            </p>
+
+            <div
+              style={{
+                display: 'flex',
+                justifyContent:
+                  'center',
+                gap: '10px',
+                marginTop:
+                  '24px',
+              }}
+            >
+              <Button
+                type="button"
+                onClick={
+                  cancelDelete
+                }
+                disabled={
+                  deleteLoading
+                }
+                variant="secondary"
+                style={{
+                  height: '40px',
+                  minWidth:
+                    '100px',
+                }}
+              >
+                Cancel
+              </Button>
+
+              <Button
+                type="button"
+                onClick={
+                  confirmDelete
+                }
+                disabled={
+                  deleteLoading
+                }
+                variant="danger"
+                style={{
+                  height: '40px',
+                  minWidth:
+                    '100px',
+                  background:
+                    '#dc2626',
+                  color:
+                    '#ffffff',
+                  border:
+                    '1px solid #dc2626',
+                }}
+              >
+                {deleteLoading
+                  ? 'Deleting...'
+                  : 'Delete'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* CENTER NOTIFICATION */}
+
+      {notification.show && (
+        <div
+          style={{
+            position: 'fixed',
+            top: '50%',
+            left: '50%',
+            transform:
+              'translate(-50%, -50%)',
+            zIndex: 300,
+            width:
+              'min(90%, 420px)',
+            padding:
+              '16px 20px',
+            boxSizing:
+              'border-box',
+            borderRadius:
+              '10px',
+            background:
+              notification.type ===
+              'success'
+                ? '#ecfdf5'
+                : '#fef2f2',
+            border:
+              notification.type ===
+              'success'
+                ? '1px solid #a7f3d0'
+                : '1px solid #fecaca',
+            color:
+              notification.type ===
+              'success'
+                ? '#047857'
+                : '#dc2626',
+            boxShadow:
+              '0 12px 35px rgba(15, 23, 42, 0.18)',
+            display: 'flex',
+            alignItems:
+              'center',
+            gap: '12px',
+            fontSize:
+              '13px',
+            fontWeight:
+              '600',
+          }}
+        >
+          <span
+            style={{
+              width: '28px',
+              height: '28px',
+              borderRadius:
+                '50%',
+              display: 'flex',
+              alignItems:
+                'center',
+              justifyContent:
+                'center',
+              flexShrink: 0,
+              background:
+                notification.type ===
+                'success'
+                  ? '#d1fae5'
+                  : '#fee2e2',
+              fontSize:
+                '14px',
+            }}
+          >
+            {notification.type ===
+            'success'
+              ? '✓'
+              : '!'}
+          </span>
+
+          <span>
+            {
+              notification.message
+            }
+          </span>
         </div>
       )}
     </div>

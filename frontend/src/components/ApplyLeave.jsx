@@ -1,20 +1,41 @@
 import { useState } from 'react';
+import { Formik, Form, Field, ErrorMessage } from 'formik';
+import * as Yup from 'yup';
+
+const validationSchema = Yup.object({
+  leaveType: Yup.string()
+    .required('Please select a leave type'),
+
+  startDate: Yup.date()
+    .required('Start date is required'),
+
+  endDate: Yup.date()
+    .required('End date is required')
+    .min(
+      Yup.ref('startDate'),
+      'End date cannot be before start date',
+    ),
+
+  reason: Yup.string()
+    .trim()
+    .required('Reason is required')
+    .min(5, 'Reason must be at least 5 characters'),
+});
 
 function ApplyLeave({ onMyLeaves, onApplyLeave, onLogout }) {
-  const [leaveType, setLeaveType] = useState('Casual Leave');
-  const [startDate, setStartDate] = useState('');
-  const [endDate, setEndDate] = useState('');
-  const [reason, setReason] = useState('');
   const [message, setMessage] = useState('');
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+  const initialValues = {
+    leaveType: 'Casual Leave',
+    startDate: '',
+    endDate: '',
+    reason: '',
+  };
 
-    if (endDate < startDate) {
-      setMessage('End date cannot be before start date');
-      return;
-    }
-
+  const handleSubmit = async (
+    values,
+    { resetForm, setSubmitting },
+  ) => {
     setMessage('Submitting leave...');
 
     try {
@@ -28,37 +49,42 @@ function ApplyLeave({ onMyLeaves, onApplyLeave, onLogout }) {
 
       const user = JSON.parse(savedUser);
 
-      const response = await fetch('http://localhost:3000/leaves/apply', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
+      const response = await fetch(
+        'http://localhost:3000/leaves/apply',
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            employeeId: user.id,
+            leaveType: values.leaveType,
+            startDate: values.startDate,
+            endDate: values.endDate,
+            reason: values.reason,
+          }),
         },
-        body: JSON.stringify({
-          employeeId: user.id,
-          leaveType,
-          startDate,
-          endDate,
-          reason,
-        }),
-      });
+      );
 
       const data = await response.json();
 
       if (!response.ok) {
-        setMessage(data.message || 'Failed to apply leave');
+        const errorMessage = Array.isArray(data.message)
+          ? data.message.join(', ')
+          : data.message || 'Failed to apply leave';
+
+        setMessage(errorMessage);
         return;
       }
 
       setMessage('Leave applied successfully!');
-
-      setLeaveType('Casual Leave');
-      setStartDate('');
-      setEndDate('');
-      setReason('');
+      resetForm();
     } catch (error) {
       console.error(error);
       setMessage('Cannot connect to backend');
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -80,10 +106,8 @@ function ApplyLeave({ onMyLeaves, onApplyLeave, onLogout }) {
         </div>
 
         <div style={styles.menu}>
-
           <p style={styles.menuTitle}>MENU</p>
 
-          {/* APPLY LEAVE */}
           <button
             style={styles.activeMenu}
             onClick={onApplyLeave}
@@ -92,7 +116,6 @@ function ApplyLeave({ onMyLeaves, onApplyLeave, onLogout }) {
             Apply Leave
           </button>
 
-          {/* MY LEAVES */}
           <button
             style={styles.menuButton}
             onClick={onMyLeaves}
@@ -100,7 +123,6 @@ function ApplyLeave({ onMyLeaves, onApplyLeave, onLogout }) {
             <span>☰</span>
             My Leave Requests
           </button>
-
         </div>
 
         <div style={styles.sidebarFooter}>
@@ -128,9 +150,7 @@ function ApplyLeave({ onMyLeaves, onApplyLeave, onLogout }) {
       {/* MAIN CONTENT */}
       <main style={styles.main}>
 
-        {/* HEADER */}
         <header style={styles.header}>
-
           <div>
             <p style={styles.breadcrumb}>
               Employee / Apply Leave
@@ -144,10 +164,8 @@ function ApplyLeave({ onMyLeaves, onApplyLeave, onLogout }) {
               Submit your leave request for HR approval.
             </p>
           </div>
-
         </header>
 
-        {/* CONTENT */}
         <div style={styles.content}>
 
           {/* FORM */}
@@ -171,145 +189,177 @@ function ApplyLeave({ onMyLeaves, onApplyLeave, onLogout }) {
 
             </div>
 
-            <form onSubmit={handleSubmit}>
+            <Formik
+              initialValues={initialValues}
+              validationSchema={validationSchema}
+              onSubmit={handleSubmit}
+            >
+              {({
+                isSubmitting,
+                resetForm,
+              }) => (
+                <Form>
 
-              {/* LEAVE TYPE */}
-              <div style={styles.formGroup}>
+                  {/* LEAVE TYPE */}
+                  <div style={styles.formGroup}>
 
-                <label style={styles.label}>
-                  Leave Type
-                </label>
+                    <label style={styles.label}>
+                      Leave Type
+                    </label>
 
-                <select
-                  value={leaveType}
-                  onChange={(e) => setLeaveType(e.target.value)}
-                  style={styles.input}
-                >
+                    <Field
+                      as="select"
+                      name="leaveType"
+                      style={styles.input}
+                    >
+                      <option value="Casual Leave">
+                        Casual Leave
+                      </option>
 
-                  <option value="Casual Leave">
-                    Casual Leave
-                  </option>
+                      <option value="Sick Leave">
+                        Sick Leave
+                      </option>
 
-                  <option value="Sick Leave">
-                    Sick Leave
-                  </option>
+                      <option value="Earned Leave">
+                        Earned Leave
+                      </option>
 
-                  <option value="Earned Leave">
-                    Earned Leave
-                  </option>
+                      <option value="Emergency Leave">
+                        Emergency Leave
+                      </option>
+                    </Field>
 
-                  <option value="Emergency Leave">
-                    Emergency Leave
-                  </option>
+                    <ErrorMessage
+                      name="leaveType"
+                      component="div"
+                      style={styles.fieldError}
+                    />
 
-                </select>
+                  </div>
 
-              </div>
+                  {/* DATES */}
+                  <div style={styles.dateGrid}>
 
-              {/* DATES */}
-              <div style={styles.dateGrid}>
+                    <div style={styles.formGroup}>
 
-                <div style={styles.formGroup}>
+                      <label style={styles.label}>
+                        Start Date
+                      </label>
 
-                  <label style={styles.label}>
-                    Start Date
-                  </label>
+                      <Field
+                        type="date"
+                        name="startDate"
+                        style={styles.input}
+                      />
 
-                  <input
-                    type="date"
-                    value={startDate}
-                    onChange={(e) => setStartDate(e.target.value)}
-                    required
-                    style={styles.input}
-                  />
+                      <ErrorMessage
+                        name="startDate"
+                        component="div"
+                        style={styles.fieldError}
+                      />
 
-                </div>
+                    </div>
 
-                <div style={styles.formGroup}>
+                    <div style={styles.formGroup}>
 
-                  <label style={styles.label}>
-                    End Date
-                  </label>
+                      <label style={styles.label}>
+                        End Date
+                      </label>
 
-                  <input
-                    type="date"
-                    value={endDate}
-                    onChange={(e) => setEndDate(e.target.value)}
-                    required
-                    style={styles.input}
-                  />
+                      <Field
+                        type="date"
+                        name="endDate"
+                        style={styles.input}
+                      />
 
-                </div>
+                      <ErrorMessage
+                        name="endDate"
+                        component="div"
+                        style={styles.fieldError}
+                      />
 
-              </div>
+                    </div>
 
-              {/* REASON */}
-              <div style={styles.formGroup}>
+                  </div>
 
-                <label style={styles.label}>
-                  Reason for Leave
-                </label>
+                  {/* REASON */}
+                  <div style={styles.formGroup}>
 
-                <textarea
-                  placeholder="Tell us why you need leave..."
-                  value={reason}
-                  onChange={(e) => setReason(e.target.value)}
-                  rows="6"
-                  required
-                  style={styles.textarea}
-                />
+                    <label style={styles.label}>
+                      Reason for Leave
+                    </label>
 
-                <small style={styles.helperText}>
-                  Please provide a clear reason for your leave request.
-                </small>
+                    <Field
+                      as="textarea"
+                      name="reason"
+                      placeholder="Tell us why you need leave..."
+                      rows="6"
+                      style={styles.textarea}
+                    />
 
-              </div>
+                    <ErrorMessage
+                      name="reason"
+                      component="div"
+                      style={styles.fieldError}
+                    />
 
-              {/* MESSAGE */}
-              {message && (
-                <div
-                  style={
-                    message.includes('successfully')
-                      ? styles.successMessage
-                      : styles.errorMessage
-                  }
-                >
-                  <span>
-                    {message.includes('successfully') ? '✓' : '⚠'}
-                  </span>
+                    <small style={styles.helperText}>
+                      Please provide a clear reason for your leave request.
+                    </small>
 
-                  {message}
-                </div>
+                  </div>
+
+                  {/* MESSAGE */}
+                  {message && (
+                    <div
+                      style={
+                        message.includes('successfully')
+                          ? styles.successMessage
+                          : styles.errorMessage
+                      }
+                    >
+                      <span>
+                        {message.includes('successfully')
+                          ? '✓'
+                          : '⚠'}
+                      </span>
+
+                      {message}
+                    </div>
+                  )}
+
+                  {/* BUTTONS */}
+                  <div style={styles.actions}>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        resetForm();
+                        setMessage('');
+                      }}
+                      style={styles.cancelButton}
+                      disabled={isSubmitting}
+                    >
+                      Clear
+                    </button>
+
+                    <button
+                      type="submit"
+                      style={styles.submitButton}
+                      disabled={isSubmitting}
+                    >
+                      {isSubmitting
+                        ? 'Submitting...'
+                        : 'Submit Leave Request'}
+
+                      <span>→</span>
+                    </button>
+
+                  </div>
+
+                </Form>
               )}
-
-              {/* BUTTONS */}
-              <div style={styles.actions}>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    setLeaveType('Casual Leave');
-                    setStartDate('');
-                    setEndDate('');
-                    setReason('');
-                    setMessage('');
-                  }}
-                  style={styles.cancelButton}
-                >
-                  Clear
-                </button>
-
-                <button
-                  type="submit"
-                  style={styles.submitButton}
-                >
-                  Submit Leave Request
-                  <span>→</span>
-                </button>
-
-              </div>
-
-            </form>
+            </Formik>
 
           </section>
 
@@ -329,10 +379,7 @@ function ApplyLeave({ onMyLeaves, onApplyLeave, onLogout }) {
             </div>
 
             <div style={styles.guideItem}>
-
-              <div style={styles.guideNumber}>
-                1
-              </div>
+              <div style={styles.guideNumber}>1</div>
 
               <div>
                 <strong>Select leave type</strong>
@@ -341,14 +388,10 @@ function ApplyLeave({ onMyLeaves, onApplyLeave, onLogout }) {
                   Choose the type of leave that best matches your request.
                 </p>
               </div>
-
             </div>
 
             <div style={styles.guideItem}>
-
-              <div style={styles.guideNumber}>
-                2
-              </div>
+              <div style={styles.guideNumber}>2</div>
 
               <div>
                 <strong>Choose your dates</strong>
@@ -357,14 +400,10 @@ function ApplyLeave({ onMyLeaves, onApplyLeave, onLogout }) {
                   Select the start and end dates for your leave.
                 </p>
               </div>
-
             </div>
 
             <div style={styles.guideItem}>
-
-              <div style={styles.guideNumber}>
-                3
-              </div>
+              <div style={styles.guideNumber}>3</div>
 
               <div>
                 <strong>Add a reason</strong>
@@ -373,7 +412,6 @@ function ApplyLeave({ onMyLeaves, onApplyLeave, onLogout }) {
                   Explain the reason clearly to help HR review your request.
                 </p>
               </div>
-
             </div>
 
             <div style={styles.notice}>
@@ -381,14 +419,12 @@ function ApplyLeave({ onMyLeaves, onApplyLeave, onLogout }) {
               <span>⏱</span>
 
               <div>
-
                 <strong>What happens next?</strong>
 
                 <p>
                   Your request will be sent to HR for review.
                   You can track the status from My Leave Requests.
                 </p>
-
               </div>
 
             </div>
@@ -408,7 +444,6 @@ function ApplyLeave({ onMyLeaves, onApplyLeave, onLogout }) {
 }
 
 const styles = {
-
   page: {
     minHeight: '100vh',
     width: '100%',
@@ -675,6 +710,13 @@ const styles = {
     resize: 'vertical',
     boxSizing: 'border-box',
     fontFamily: 'inherit',
+  },
+
+  fieldError: {
+    marginTop: '6px',
+    color: '#dc2626',
+    fontSize: '11px',
+    fontWeight: '600',
   },
 
   helperText: {

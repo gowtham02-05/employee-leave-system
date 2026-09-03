@@ -16,6 +16,15 @@ function Departments({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [deleteLoading, setDeleteLoading] = useState(false);
+
+  const [notification, setNotification] = useState({
+    show: false,
+    type: "",
+    message: "",
+  });
+
   const token = localStorage.getItem("access_token");
 
   const fetchDepartments = async () => {
@@ -45,6 +54,22 @@ function Departments({
   useEffect(() => {
     fetchDepartments();
   }, []);
+
+  const showNotification = (type, message) => {
+    setNotification({
+      show: true,
+      type,
+      message,
+    });
+
+    setTimeout(() => {
+      setNotification({
+        show: false,
+        type: "",
+        message: "",
+      });
+    }, 3000);
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -101,18 +126,19 @@ function Departments({
     setError("");
   };
 
-  const handleDelete = async (id) => {
-    const confirmed = window.confirm(
-      "Are you sure you want to delete this department?"
-    );
+  const handleDelete = (department) => {
+    setDeleteTarget(department);
+  };
 
-    if (!confirmed) return;
+  const confirmDelete = async () => {
+    if (!deleteTarget) return;
 
     try {
+      setDeleteLoading(true);
       setError("");
 
       const response = await fetch(
-        `http://localhost:3000/departments/${id}`,
+        `http://localhost:3000/departments/${deleteTarget._id}`,
         {
           method: "DELETE",
           headers: {
@@ -127,9 +153,23 @@ function Departments({
         throw new Error(data.message || "Failed to delete department");
       }
 
+      setDeleteTarget(null);
+
       await fetchDepartments();
+
+      showNotification(
+        "success",
+        "Department deleted successfully"
+      );
     } catch (err) {
-      setError(err.message);
+      setDeleteTarget(null);
+
+      showNotification(
+        "error",
+        err.message || "Failed to delete department"
+      );
+    } finally {
+      setDeleteLoading(false);
     }
   };
 
@@ -660,9 +700,7 @@ function Departments({
                     <button
                       type="button"
                       style={styles.deleteButton}
-                      onClick={() =>
-                        handleDelete(department._id)
-                      }
+                      onClick={() => handleDelete(department)}
                     >
                       Delete
                     </button>
@@ -673,6 +711,145 @@ function Departments({
           )}
         </div>
       </main>
+
+      {/* DELETE CONFIRMATION MODAL */}
+      {deleteTarget && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(15, 23, 42, 0.45)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 200,
+            padding: "20px",
+            boxSizing: "border-box",
+          }}
+        >
+          <div
+            style={{
+              width: "min(90%, 420px)",
+              background: "#ffffff",
+              borderRadius: "12px",
+              padding: "24px",
+              boxSizing: "border-box",
+              boxShadow: "0 20px 50px rgba(15, 23, 42, 0.25)",
+            }}
+          >
+            <h3
+              style={{
+                margin: "0 0 10px",
+                color: "#111827",
+                fontSize: "18px",
+              }}
+            >
+              Delete Department?
+            </h3>
+
+            <p
+              style={{
+                margin: "0 0 22px",
+                color: "#64748b",
+                fontSize: "13px",
+                lineHeight: "1.5",
+              }}
+            >
+              Are you sure you want to delete{" "}
+              <strong>
+                {deleteTarget.departmentName}
+              </strong>
+              ?
+            </p>
+
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "flex-end",
+                gap: "10px",
+              }}
+            >
+              <button
+                type="button"
+                onClick={() => setDeleteTarget(null)}
+                disabled={deleteLoading}
+                style={{
+                  padding: "10px 16px",
+                  border: "1px solid #d1d5db",
+                  borderRadius: "7px",
+                  background: "#ffffff",
+                  color: "#374151",
+                  cursor: "pointer",
+                  fontSize: "13px",
+                  fontWeight: "600",
+                }}
+              >
+                Cancel
+              </button>
+
+              <button
+                type="button"
+                onClick={confirmDelete}
+                disabled={deleteLoading}
+                style={{
+                  padding: "10px 16px",
+                  border: "none",
+                  borderRadius: "7px",
+                  background: "#dc2626",
+                  color: "#ffffff",
+                  cursor: "pointer",
+                  fontSize: "13px",
+                  fontWeight: "600",
+                }}
+              >
+                {deleteLoading ? "Deleting..." : "Delete"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* TOP-CENTER NOTIFICATION */}
+      {notification.show && (
+        <div
+          style={{
+            position: "fixed",
+            top: "20px",
+            left: "50%",
+            transform: "translateX(-50%)",
+            zIndex: 300,
+            width: "min(90%, 420px)",
+            padding: "16px 20px",
+            boxSizing: "border-box",
+            borderRadius: "10px",
+            background:
+              notification.type === "success"
+                ? "#ecfdf5"
+                : "#fef2f2",
+            border:
+              notification.type === "success"
+                ? "1px solid #a7f3d0"
+                : "1px solid #fecaca",
+            color:
+              notification.type === "success"
+                ? "#047857"
+                : "#dc2626",
+            boxShadow:
+              "0 12px 35px rgba(15, 23, 42, 0.18)",
+            display: "flex",
+            alignItems: "center",
+            gap: "12px",
+            fontSize: "13px",
+            fontWeight: "600",
+          }}
+        >
+          <span>
+            {notification.type === "success" ? "✓" : "✕"}
+          </span>
+
+          <span>{notification.message}</span>
+        </div>
+      )}
     </div>
   );
 }
